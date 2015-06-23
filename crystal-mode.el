@@ -2038,7 +2038,8 @@ See `font-lock-syntax-table'.")
     (,(concat
        crystal-font-lock-keyword-beg-re
        (regexp-opt
-        '("alias"
+        '("->"
+          "alias"
           "and"
           "begin"
           "break"
@@ -2058,6 +2059,7 @@ See `font-lock-syntax-table'.")
           "module"
           "next"
           "not"
+          "of"
           "or"
           "redo"
           "rescue"
@@ -2091,6 +2093,7 @@ See `font-lock-syntax-table'.")
           "loop"
           "open"
           "p"
+          "pp"
           "print"
           "printf"
           "proc"
@@ -2107,9 +2110,9 @@ See `font-lock-syntax-table'.")
           ;; keyword-like private methods on Module
           "alias_method"
           "attr"
-          "attr_accessor"
-          "attr_reader"
-          "attr_writer"
+          "property"
+          "getter"
+          "setter"
           "define_method"
           "extend"
           "include"
@@ -2181,14 +2184,13 @@ See `font-lock-syntax-table'.")
                             "LAST_MATCH_INFO" "IGNORECASE"
                             "ARGV" "MATCH" "PREMATCH" "POSTMATCH"
                             "LAST_PAREN_MATCH" "stdin" "stdout" "stderr"
-                            "DEBUG" "FILENAME" "VERBOSE" "SAFE" "CLASSPATH"
-                            "JCRYSTAL_VERSION" "JCRYSTAL_REVISION" "ENV_JAVA"))
+                            "DEBUG" "FILENAME" "VERBOSE" "SAFE" "CLASSPATH"))
               "\\_>\\)")
      0 font-lock-builtin-face)
     ("\\(\\$\\|@\\|@@\\)\\(\\w\\|_\\)+"
      0 font-lock-variable-name-face)
     ;; Constants.
-    ("\\(?:\\_<\\|::\\)\\([A-Z]+\\(\\w\\|_\\)*\\)"
+    ("\\(?:\\_<\\|::\\|\\s+:\\s+\\)\\([A-Z]+\\(\\w\\|_\\)*\\)"
      1 (unless (eq ?\( (char-after)) font-lock-type-face))
     ("\\(^\\s *\\|[\[\{\(,]\\s *\\|\\sw\\s +\\)\\(\\(\\sw\\|_\\)+\\):[^:]"
      (2 font-lock-constant-face))
@@ -2255,12 +2257,7 @@ See `font-lock-syntax-table'.")
 ;;;###autoload
 (add-to-list 'auto-mode-alist
              (cons (purecopy (concat "\\(?:\\."
-                                     "rb\\|ru\\|rake\\|thor"
-                                     "\\|jbuilder\\|rabl\\|gemspec\\|podspec"
-                                     "\\|/"
-                                     "\\(?:Gem\\|Rake\\|Cap\\|Thor"
-                                     "\\|Puppet\\|Berks"
-                                     "\\|Vagrant\\|Guard\\|Pod\\)file"
+                                     "cr"
                                      "\\)\\'")) 'crystal-mode))
 
 ;;;###autoload
