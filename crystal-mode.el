@@ -55,7 +55,7 @@
   :group 'languages)
 
 (defconst crystal-block-beg-keywords
-  '("class" "module" "def" "if" "unless" "case" "while" "until" "for" "begin" "do")
+  '("class" "module" "def" "if" "unless" "case" "while" "until" "for" "begin" "do" "macro")
   "Keywords at the beginning of blocks.")
 
 (defconst crystal-block-beg-re
@@ -67,7 +67,7 @@
   "Regexp to match keywords that nest without blocks.")
 
 (defconst crystal-indent-beg-re
-  (concat "^\\(\\s *" (regexp-opt '("class" "module" "def")) "\\|"
+  (concat "^\\(\\s *" (regexp-opt '("class" "module" "def" "macro")) "\\|"
           (regexp-opt '("if" "unless" "case" "while" "until" "for" "begin"))
           "\\)\\_>")
   "Regexp to match where the indentation gets deeper.")
@@ -103,7 +103,7 @@
 (defconst crystal-block-end-re "\\_<end\\_>")
 
 (defconst crystal-defun-beg-re
-  '"\\(def\\|class\\|module\\)"
+  '"\\(def\\|class\\|module\\|macro\\)"
   "Regexp to match the beginning of a defun, in the general sense.")
 
 (defconst crystal-singleton-class-re
@@ -239,10 +239,10 @@ This should only be called after matching against `crystal-here-doc-beg-re'."
   :group 'crystal
   :safe 'integerp)
 
-(defconst crystal-alignable-keywords '(if while unless until begin case for def)
+(defconst crystal-alignable-keywords '(if while unless until begin case for def macro)
   "Keywords that can be used in `crystal-align-to-stmt-keywords'.")
 
-(defcustom crystal-align-to-stmt-keywords '(def)
+(defcustom crystal-align-to-stmt-keywords '(def macro)
   "Keywords after which we align the expression body to statement.
 
 When nil, an expression that begins with one these keywords is
@@ -382,7 +382,6 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
              ("begin" insts-rescue-insts "end")
              ("do" insts "end")
              ("class" insts "end") ("module" insts "end")
-             ("for" for-body "end")
              ("[" expseq "]")
              ("{" hashvals "}")
              ("{" insts "}")
@@ -390,7 +389,13 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
              ("until" insts "end")
              ("unless" insts "end")
              ("if" if-body "end")
+             ("macro" macro-body "end")
              ("case"  cases "end"))
+       (forexp ("for" for-body "end"))
+       (macroinst (insts) (forexp))
+       (macrocode ("{%" macroinst "%}"))
+       (macrovar ("{{" exp "}}"))
+       (macro-body (insts) (macrocode) (macrovar))
        (formal-params ("opening-|" exp "closing-|"))
        (for-body (for-head ";" insts))
        (for-head (id "in" exp))
@@ -613,7 +618,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
     (`(:before . ";")
      (cond
       ((smie-rule-parent-p "def" "begin" "do" "class" "module" "for"
-                           "while" "until" "unless"
+                           "while" "until" "unless" "macro"
                            "if" "then" "elsif" "else" "when"
                            "rescue" "ensure" "{")
        (smie-rule-parent crystal-indent-level))
@@ -908,7 +913,7 @@ and `\\' when preceded by `?'."
 (defun crystal-expr-beg (&optional option)
   "Check if point is possibly at the beginning of an expression.
 OPTION specifies the type of the expression.
-Can be one of `heredoc', `modifier', `expr-qstr', `expr-re'."
+Can be one of `heredoc', `modifier', `expr-qstr', `expr-re'. `macro-cmd'"
   (save-excursion
     (store-match-data nil)
     (let ((space (skip-chars-backward " \t"))
@@ -940,9 +945,13 @@ Can be one of `heredoc', `modifier', `expr-qstr', `expr-re'."
                    (goto-char (match-end 0))
                    (not (looking-at "\\s_")))
                   ((eq option 'expr-qstr)
-                   (looking-at "[a-zA-Z][a-zA-z0-9_]* +%[^ \t]"))
+                   (looking-at "[a-zA-Z][a-zA-z0-9_]* +%[^ \t}]"))
                   ((eq option 'expr-re)
                    (looking-at "[a-zA-Z][a-zA-z0-9_]* +/[^ \t]"))
+                  ((eq option 'macro-cmd)
+                   (looking-at "{%"))
+                  ((eq option 'macro-var)
+                   (looking-at "{{"))
                   (t nil)))))))))
 
 (defun crystal-forward-string (term &optional end no-error expand)
@@ -1027,12 +1036,20 @@ delimiter."
             (goto-char end)))
          (t
           (goto-char pnt))))
+       ((looking-at "{%")
+        (cond
+         (and (not(eobp)) (crystal-expr-beg 'macro-cmd))
+         (if (crystal-forward-string "%}" end t t)
+             nil
+           (setq in-string (point))
+           (goto-char end))))
        ((looking-at "%")
         (cond
          ((and (not (eobp))
                (crystal-expr-beg 'expr-qstr)
                (not (looking-at "%="))
-               (looking-at "%[QqrxWw]?\\([^a-zA-Z0-9 \t\n]\\)"))
+               (not (looking-at "%}"))
+               (looking-at "%[QqrxWw]?\\([^a-zA-Z0-9 \t\n{]\\)"))
           (goto-char (match-beginning 1))
           (setq expand (not (memq (char-before) '(?q ?w))))
           (setq w (match-string 1))
@@ -1815,7 +1832,7 @@ If the result is do-end block, it will always be multiline."
 
 (eval-and-compile
   (defconst crystal-percent-literal-beg-re
-    "\\(%\\)[qQrswWxIi]?\\([[:punct:]]\\)"
+    "\\(%\\)[qQrswWxIi]?\\([!\"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|~]\\)"
     "Regexp to match the beginning of percent literal.")
 
   (defconst crystal-syntax-methods-before-regexp
@@ -2056,6 +2073,7 @@ See `font-lock-syntax-table'.")
           "end"
           "if"
           "in"
+          "macro"
           "module"
           "next"
           "not"
@@ -2072,7 +2090,11 @@ See `font-lock-syntax-table'.")
           "until"
           "when"
           "while"
-          "yield")
+          "yield"
+          "{{"
+          "}}"
+          "{%"
+          "%}")
         'symbols))
      (1 font-lock-keyword-face))
     ;; Core methods that have required arguments.
