@@ -463,12 +463,12 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
                (forward-comment 1)
                (eq (char-after) ?.))))))
 
-;; FIXME this seems relevant to macro problem
 (defun crystal-smie--redundant-do-p (&optional skip)
   (save-excursion
     (if skip (backward-word 1))
     (member (nth 2 (smie-backward-sexp ";")) '("while" "until" "for"))))
 
+;; this handles "macro def ... end" blocks
 (defun crystal-smie--redundant-macro-def-p (&optional skip)
   (save-excursion
     (if skip (backward-word 1))
@@ -513,6 +513,8 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
   (let ((pos (point)))
     (skip-chars-forward " \t")
     (cond
+     ((looking-at "{%") "do")
+     ((looking-at "%}") "end")
      ((and (looking-at "\n") (looking-at "\\s\""))  ;A heredoc.
       ;; Tokenize the whole heredoc as semicolon.
       (goto-char (scan-sexps (point) 1))
@@ -555,7 +557,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
              ((> (save-excursion (forward-comment (point-max)) (point))
                  (line-end-position))
               (crystal-smie--forward-token)) ;Fully redundant.
-             (t "end"))) ;; FIXME WHY
+             (t ";"))) ;; Unclear why "end" works here but ";"
            ((equal tok "do")
             (cond
              ((not (crystal-smie--redundant-do-p 'skip)) tok)
@@ -638,18 +640,15 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
     ;; (`(:after . ",") (smie-rule-separator kind))
     (`(:before . ";")
      (cond
-      ((and (smie-rule-parent-p "def" "begin" "do" "class" "module" "for"
-                                "while" "until" "unless" "macro"
-                                "if" "then" "elsif" "else" "when"
-                                "rescue" "ensure" "{")
-            (not (smie-rule-prev-p "macro")))
+      ((smie-rule-parent-p "def" "begin" "do" "class" "module" "for"
+                           "while" "until" "unless" "macro"
+                           "if" "then" "elsif" "else" "when"
+                           "rescue" "ensure" "{")
        (smie-rule-parent crystal-indent-level))
       ;; For (invalid) code between switch and case.
       ;; (if (smie-parent-p "switch") 4)
       ))
-    ;; for "macro def"  align to "macro" not "def"
-    (`(:after . "def")
-     (if (smie-rule-prev-p "macro") (smie-rule-parent)))
+
     (`(:before . ,(or `"(" `"[" `"{"))
      (cond
       ((and (equal token "{")
