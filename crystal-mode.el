@@ -55,7 +55,7 @@
   :group 'languages)
 
 (defconst crystal-block-beg-keywords
-  '("class" "module" "def" "if" "unless" "case" "while" "until" "for" "begin" "do" "macro")
+  '("macro def" "class" "module" "def" "if" "unless" "case" "while" "until" "for" "begin" "do" "macro")
   "Keywords at the beginning of blocks.")
 
 (defconst crystal-block-beg-re
@@ -67,7 +67,7 @@
   "Regexp to match keywords that nest without blocks.")
 
 (defconst crystal-indent-beg-re
-  (concat "^\\(\\s *" (regexp-opt '("class" "module" "def" "macro")) "\\|"
+  (concat "^\\(\\s *" (regexp-opt '("macro def" "class" "module" "def" "macro")) "\\|"
           (regexp-opt '("if" "unless" "case" "while" "until" "for" "begin"))
           "\\)\\_>")
   "Regexp to match where the indentation gets deeper.")
@@ -103,7 +103,7 @@
 (defconst crystal-block-end-re "\\_<end\\_>")
 
 (defconst crystal-defun-beg-re
-  '"\\(def\\|class\\|module\\|macro\\)"
+  '"\\(macro def\\|def\\|class\\|module\\|macro\\)"
   "Regexp to match the beginning of a defun, in the general sense.")
 
 (defconst crystal-singleton-class-re
@@ -130,7 +130,7 @@ This should only be called after matching against `crystal-here-doc-beg-re'."
                (match-string 6)))))
 
 (defconst crystal-delimiter
-  (concat "[?$/%(){}#\"'`.:]\\|<<\\|\\[\\|\\]\\|\\_<\\("
+  (concat "[?$/%(){}#\"'`.:]\\|<<\\|\\[\\|\\]\\|\\_<\\|\\<\\|{%\\s*\\("
           crystal-block-beg-re
           "\\)\\_>\\|" crystal-block-end-re
           "\\|^=begin\\|" crystal-here-doc-beg-re))
@@ -242,7 +242,7 @@ This should only be called after matching against `crystal-here-doc-beg-re'."
 (defconst crystal-alignable-keywords '(if while unless until begin case for def macro)
   "Keywords that can be used in `crystal-align-to-stmt-keywords'.")
 
-(defcustom crystal-align-to-stmt-keywords '(def macro)
+(defcustom crystal-align-to-stmt-keywords '(def)
   "Keywords after which we align the expression body to statement.
 
 When nil, an expression that begins with one these keywords is
@@ -279,6 +279,7 @@ Only has effect when `crystal-use-smie' is t.
 
 (defcustom crystal-align-chained-calls nil
   "If non-nil, align chained method calls.
+
 
 Each method call on a separate line will be aligned to the column
 of its parent.
@@ -362,8 +363,6 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
 
 (require 'smie)
 
-;; Here's a simplified BNF grammar, for reference:
-;; http://www.cse.buffalo.edu/~regan/cse305/CrystalBNF.pdf
 (defconst crystal-smie-grammar
   (smie-prec2->grammar
    (smie-merge-prec2s
@@ -378,7 +377,8 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
              (id " @ " exp))
        (exp1 (exp2) (exp2 "?" exp1 ":" exp1))
        (exp2 (exp3) (exp3 "." exp2))
-       (exp3 ("def" insts "end")
+       (exp3 ("macro def" macro-body "end")
+             ("def" insts "end")
              ("begin" insts-rescue-insts "end")
              ("do" insts "end")
              ("class" insts "end") ("module" insts "end")
@@ -391,12 +391,12 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
              ("if" if-body "end")
              ("macro" macro-body "end")
              ("case"  cases "end"))
-       (forexp ("for" for-body "end"))
        (macroinst (insts) (forexp))
        (macrocode ("{%" macroinst "%}"))
        (macrovar ("{{" exp "}}"))
        (macro-body (insts) (macrocode) (macrovar))
        (formal-params ("opening-|" exp "closing-|"))
+       (forexp ("for" for-body "end"))
        (for-body (for-head ";" insts))
        (for-head (id "in" exp))
        (cases (exp "then" insts)
@@ -463,10 +463,16 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
                (forward-comment 1)
                (eq (char-after) ?.))))))
 
+;; FIXME this seems relevant to macro problem
 (defun crystal-smie--redundant-do-p (&optional skip)
   (save-excursion
     (if skip (backward-word 1))
     (member (nth 2 (smie-backward-sexp ";")) '("while" "until" "for"))))
+
+(defun crystal-smie--redundant-macro-def-p (&optional skip)
+  (save-excursion
+    (if skip (backward-word 1))
+    (member (nth 2 (smie-backward-sexp ";")) '("macro"))))
 
 (defun crystal-smie--opening-pipe-p ()
   (save-excursion
@@ -543,6 +549,13 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
              (t tok)))
            ((and (equal tok "") (looking-at "\\\\\n"))
             (goto-char (match-end 0)) (crystal-smie--forward-token))
+           ((equal tok "def")
+            (cond
+             ((not (crystal-smie--redundant-macro-def-p 'skip)) tok)
+             ((> (save-excursion (forward-comment (point-max)) (point))
+                 (line-end-position))
+              (crystal-smie--forward-token)) ;Fully redundant.
+             (t "end"))) ;; FIXME WHY
            ((equal tok "do")
             (cond
              ((not (crystal-smie--redundant-do-p 'skip)) tok)
@@ -589,6 +602,14 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
           (substring tok 1))
          ((and (equal tok "") (eq ?\\ (char-before)) (looking-at "\n"))
           (forward-char -1) (crystal-smie--backward-token))
+         ((equal tok "def")
+          (cond
+           ((not (crystal-smie--redundant-macro-def-p)) tok)
+           ((> (save-excursion (forward-word 1)
+                               (forward-comment (point-max)) (point))
+               (line-end-position))
+            (crystal-smie--backward-token)) ;Fully redundant.
+           (t ";")))
          ((equal tok "do")
           (cond
            ((not (crystal-smie--redundant-do-p)) tok)
@@ -617,14 +638,18 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
     ;; (`(:after . ",") (smie-rule-separator kind))
     (`(:before . ";")
      (cond
-      ((smie-rule-parent-p "def" "begin" "do" "class" "module" "for"
-                           "while" "until" "unless" "macro"
-                           "if" "then" "elsif" "else" "when"
-                           "rescue" "ensure" "{")
+      ((and (smie-rule-parent-p "def" "begin" "do" "class" "module" "for"
+                                "while" "until" "unless" "macro"
+                                "if" "then" "elsif" "else" "when"
+                                "rescue" "ensure" "{")
+            (not (smie-rule-prev-p "macro")))
        (smie-rule-parent crystal-indent-level))
       ;; For (invalid) code between switch and case.
       ;; (if (smie-parent-p "switch") 4)
       ))
+    ;; for "macro def"  align to "macro" not "def"
+    (`(:after . "def")
+     (if (smie-rule-prev-p "macro") (smie-rule-parent)))
     (`(:before . ,(or `"(" `"[" `"{"))
      (cond
       ((and (equal token "{")
@@ -1036,13 +1061,6 @@ delimiter."
             (goto-char end)))
          (t
           (goto-char pnt))))
-       ((looking-at "{%")
-        (cond
-         (and (not(eobp)) (crystal-expr-beg 'macro-cmd))
-         (if (crystal-forward-string "%}" end t t)
-             nil
-           (setq in-string (point))
-           (goto-char end))))
        ((looking-at "%")
         (cond
          ((and (not (eobp))
@@ -1138,6 +1156,11 @@ delimiter."
                  (back-to-indentation)
                  (not (looking-at crystal-non-block-do-re)))))
          (or (bolp)
+             ;; here for allowing {% %} blocks ? FIXME
+             (save-excursion
+               (back-to-indentation)
+               (skip-chars-forward " \t")
+               (looking-at "{%"))
              (progn
                (forward-char -1)
                (setq w (char-after (point)))
