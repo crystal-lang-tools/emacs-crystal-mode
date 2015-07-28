@@ -13,4 +13,4 @@
   :modes crystal-mode
   )
 
-(add-to-list 'flycheck-checkers 'my-new-syntax-checker)
+(add-to-list 'flycheck-checkers 'crystal-build)
