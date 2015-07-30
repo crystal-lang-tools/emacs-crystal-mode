@@ -55,7 +55,7 @@
   :group 'languages)
 
 (defconst crystal-block-beg-keywords
-  '("macro def" "class" "module" "def" "if" "unless" "case" "while" "until" "for" "begin" "do" "macro")
+  '("class" "module" "def" "if" "unless" "case" "while" "until" "for" "begin" "do" "macro")
   "Keywords at the beginning of blocks.")
 
 (defconst crystal-block-beg-re
@@ -67,7 +67,7 @@
   "Regexp to match keywords that nest without blocks.")
 
 (defconst crystal-indent-beg-re
-  (concat "^\\(\\s *" (regexp-opt '("macro def" "class" "module" "def" "macro")) "\\|"
+  (concat "^\\(\\s *" (regexp-opt '("class" "module" "def" "macro")) "\\|"
           (regexp-opt '("if" "unless" "case" "while" "until" "for" "begin"))
           "\\)\\_>")
   "Regexp to match where the indentation gets deeper.")
@@ -103,7 +103,7 @@
 (defconst crystal-block-end-re "\\_<end\\_>")
 
 (defconst crystal-defun-beg-re
-  '"\\(macro def\\|def\\|class\\|module\\|macro\\)"
+  '"\\(def\\|class\\|module\\|macro\\)"
   "Regexp to match the beginning of a defun, in the general sense.")
 
 (defconst crystal-singleton-class-re
@@ -377,8 +377,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
              (id " @ " exp))
        (exp1 (exp2) (exp2 "?" exp1 ":" exp1))
        (exp2 (exp3) (exp3 "." exp2))
-       (exp3 ("macro def" macro-body "end")
-             ("def" insts "end")
+       (exp3 ("def" insts "end")
              ("begin" insts-rescue-insts "end")
              ("do" insts "end")
              ("class" insts "end") ("module" insts "end")
@@ -394,7 +393,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
        (macroinst (insts) (forexp))
        (macrocode ("{%" macroinst "%}"))
        (macrovar ("{{" exp "}}"))
-       (macro-body (insts) (macrocode) (macrovar))
+       (macro-body (insts) (exp3) (macrocode) (macrovar))
        (formal-params ("opening-|" exp "closing-|"))
        (forexp ("for" for-body "end"))
        (for-body (for-head ";" insts))
