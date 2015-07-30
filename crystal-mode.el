@@ -512,8 +512,6 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
   (let ((pos (point)))
     (skip-chars-forward " \t")
     (cond
-     ((looking-at "{%") "do")
-     ((looking-at "%}") "end")
      ((and (looking-at "\n") (looking-at "\\s\""))  ;A heredoc.
       ;; Tokenize the whole heredoc as semicolon.
       (goto-char (scan-sexps (point) 1))
