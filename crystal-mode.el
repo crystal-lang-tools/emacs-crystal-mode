@@ -130,7 +130,7 @@ This should only be called after matching against `crystal-here-doc-beg-re'."
                (match-string 6)))))
 
 (defconst crystal-delimiter
-  (concat "[?$/%(){}#\"'`.:]\\|<<\\|\\[\\|\\]\\|\\_<\\|\\<\\|{%\\s*\\("
+  (concat "[?$/%(){}#\"'`.:]\\|<<\\|\\[\\|\\]\\|\\_<\\|\\<\\("
           crystal-block-beg-re
           "\\)\\_>\\|" crystal-block-end-re
           "\\|^=begin\\|" crystal-here-doc-beg-re))
@@ -2068,7 +2068,7 @@ See `font-lock-syntax-table'.")
 
 (defconst crystal-font-lock-keywords
   `(;; Functions.
-    ("^\\s *def\\s +\\(?:[^( \t\n.]*\\.\\)?\\([^( \t\n]+\\)"
+    ("^\\s *def\\s +\\(?:[^( \t\n.{}]*\\.\\)?\\([^( \t\n{}]+\\)"
      1 font-lock-function-name-face)
     ;; Keywords.
     (,(concat
@@ -2109,11 +2109,7 @@ See `font-lock-syntax-table'.")
           "until"
           "when"
           "while"
-          "yield"
-          "{{"
-          "}}"
-          "{%"
-          "%}")
+          "yield")
         'symbols))
      (1 font-lock-keyword-face))
     ;; Core methods that have required arguments.
@@ -2249,6 +2245,8 @@ See `font-lock-syntax-table'.")
     ;; Character literals.
     ;; FIXME: Support longer escape sequences.
     ("\\_<\\?\\\\?\\S " 0 font-lock-string-face)
+    ;; macro delimiters
+    ("\\({%\\|{{\\|}}\\|%}\\)" 1 font-lock-preprocessor-face)
     ;; Regexp options.
     ("\\(?:\\s|\\|/\\)\\([imxo]+\\)"
      1 (when (save-excursion
