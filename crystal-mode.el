@@ -102,6 +102,11 @@
 
 (defconst crystal-block-end-re "\\_<end\\_>")
 
+(defconst crystal-macro-end-cmd-re "{%\\s*\\_<end\\_>\\s*%}")
+
+(defconst crystal-macro-cmd-re
+  (concat "{%\\s*\\(" (regexp-opt '("for if else case elsif when")) "\\)\\_>.*?\\s*%}"))
+
 (defconst crystal-defun-beg-re
   '"\\(def\\|class\\|module\\|macro\\)"
   "Regexp to match the beginning of a defun, in the general sense.")
@@ -384,18 +389,26 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
              ("[" expseq "]")
              ("{" hashvals "}")
              ("{" insts "}")
+             ("{{" exp "}}")
+             ("{{" id "}}")
              ("while" insts "end")
              ("until" insts "end")
              ("unless" insts "end")
              ("if" if-body "end")
-             ("macro" macro-body "end")
+             ("macro" insts "end")
              ("case"  cases "end"))
-       (macroinst (insts) (forexp))
-       (macrocode ("{%" macroinst "%}"))
-       (macrovar ("{{" exp "}}"))
-       (macro-body (insts) (exp3) (macrocode) (macrovar))
+       ;;(macro-cmd (inst) (forexp))
+       ;;(macro-cmds (macro-cmd) (macro-cmds ";" macro-cmds))
+       ;;(macro-start ("{%" macro-cmd "%}"))
+       ;;(macro-block (macro-start macroinsts "{%end%}"))
+       ;;(macro-code ("{%" macro-cmds "%}"))
+       ;; FIXME this is wrong
+       ;;(macro-inst (inst) (macro-block) (macro-code))
+       ;;(macro-insts (macro-inst) (macro-insts ";" macro-insts))
+       ;;(macro-body (macro-insts))
        (formal-params ("opening-|" exp "closing-|"))
-       (forexp ("for" for-body "end"))
+       (forexp ("for" for-body "end") ("for" for-body "{%end%}"))
+       (hanging-for ("for" for-head))
        (for-body (for-head ";" insts))
        (for-head (id "in" exp))
        (cases (exp "then" insts)
@@ -512,6 +525,8 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
   (let ((pos (point)))
     (skip-chars-forward " \t")
     (cond
+     ;;((looking-at crystal-macro-cmd-re) "{%end%}")
+     ;;((looking-at crystal-macro-end-cmd-re) (match-string 1))
      ((and (looking-at "\n") (looking-at "\\s\""))  ;A heredoc.
       ;; Tokenize the whole heredoc as semicolon.
       (goto-char (scan-sexps (point) 1))
@@ -533,6 +548,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
        (t
         (let ((dot (crystal-smie--at-dot-call))
               (tok (smie-default-forward-token)))
+          ;; (message "forward tok %s" tok)
           (when dot
             (setq tok (concat "." tok)))
           (cond
@@ -554,7 +570,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
              ((> (save-excursion (forward-comment (point-max)) (point))
                  (line-end-position))
               (crystal-smie--forward-token)) ;Fully redundant.
-             (t ";"))) ;; Unclear why "end" works here but ";"
+             (t ";")))
            ((equal tok "do")
             (cond
              ((not (crystal-smie--redundant-do-p 'skip)) tok)
@@ -568,11 +584,18 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
   (let ((pos (point)))
     (forward-comment (- (point)))
     (cond
+     ;; FIXME why do these never fire?
+     ;; treat macro expr similarly to heredocs? go backwards and tokenize
+     ;; as the last token inside of the macro expr
+     ;;((looking-at crystal-macro-cmd-re) "{%end%}")
+     ;;((looking-at crystal-macro-end-cmd-re) (match-string 1))
+
      ((and (> pos (line-end-position)) (crystal-smie--implicit-semi-p))
       (skip-chars-forward " \t") ";")
      ((and (bolp) (not (bobp)))         ;Presumably a heredoc.
       ;; Tokenize the whole heredoc as semicolon.
       (goto-char (scan-sexps (point) -1))
+      ;; (message "back to heredoc")
       ";")
      ((and (> pos (point)) (not (bolp))
            (crystal-smie--args-separator-p pos))
@@ -583,25 +606,33 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
      (t
       (let ((tok (smie-default-backward-token))
             (dot (crystal-smie--at-dot-call)))
+        ;; (message "tok is '%s'" tok)
         (when dot
+          ;; (message "back dot")
           (setq tok (concat "." tok)))
         (when (and (eq ?: (char-before)) (string-match "\\`\\s." tok))
+          ;; (message "back :")
           (forward-char -1) (setq tok (concat ":" tok))) ;; bug#15208.
         (cond
          ((member tok '("unless" "if" "while" "until"))
+          ;; (message "back if while")
           (if (crystal-smie--bosp)
               tok "iuwu-mod"))
          ((equal tok "|")
+          ;; (message "back pipe")
           (cond
            ((crystal-smie--opening-pipe-p) "opening-|")
            ((crystal-smie--closing-pipe-p) "closing-|")
            (t tok)))
          ((string-match-p "\\`|[*&]\\'" tok)
+          ;; (message "back backtick")
           (forward-char 1)
           (substring tok 1))
          ((and (equal tok "") (eq ?\\ (char-before)) (looking-at "\n"))
+          ;; (message "back escaped")
           (forward-char -1) (crystal-smie--backward-token))
          ((equal tok "def")
+          ;; (message "back def")
           (cond
            ((not (crystal-smie--redundant-macro-def-p)) tok)
            ((> (save-excursion (forward-word 1)
@@ -610,6 +641,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
             (crystal-smie--backward-token)) ;Fully redundant.
            (t ";")))
          ((equal tok "do")
+          ;; (message "back do")
           (cond
            ((not (crystal-smie--redundant-do-p)) tok)
            ((> (save-excursion (forward-word 1)
@@ -636,17 +668,23 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
     (`(:elem . args) (if (looking-at "\\s\"") 0))
     ;; (`(:after . ",") (smie-rule-separator kind))
     (`(:before . ";")
+     ;; (message "Before ;")
      (cond
       ((smie-rule-parent-p "def" "begin" "do" "class" "module" "for"
                            "while" "until" "unless" "macro"
                            "if" "then" "elsif" "else" "when"
                            "rescue" "ensure" "{")
+       ;; (message "Still got this one %s" (smie-indent--parent))
        (smie-rule-parent crystal-indent-level))
       ;; For (invalid) code between switch and case.
       ;; (if (smie-parent-p "switch") 4)
+      ((crystal-smie--after-macro)
+       ;; (message "after macro hit")
+       (smie-rule-parent crystal-indent-level))
       ))
 
     (`(:before . ,(or `"(" `"[" `"{"))
+     ;; (message "Before ( [ {")
      (cond
       ((and (equal token "{")
             (not (smie-rule-prev-p "(" "{" "[" "," "=>" "=" "return" ";"))
@@ -656,6 +694,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
        ;; Curly block opener.
        (crystal-smie--indent-to-stmt))
       ((smie-rule-hanging-p)
+       ;; (message "hanging p")
        ;; Treat purely syntactic block-constructs as being part of their parent,
        ;; when the opening token is hanging and the parent is not an
        ;; open-paren.
@@ -682,6 +721,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
     (`(:after . ,(or `"(" "[" "{"))
      ;; FIXME: Shouldn't this be the default behavior of
      ;; `smie-indent-after-keyword'?
+     ;; (message "After ([{")
      (save-excursion
        (forward-char 1)
        (skip-chars-forward " \t")
@@ -690,6 +730,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
        (unless (or (eolp) (forward-comment 1))
          (cons 'column (current-column)))))
     (`(:before . " @ ")
+     ;; (message "Before @")
      (save-excursion
        (skip-chars-forward " \t")
        (cons 'column (current-column))))
@@ -763,6 +804,12 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
                       next beg) index-alist))
         (goto-char beg))))
     index-alist))
+
+(defun crystal-smie--after-macro ()
+  (save-excursion
+
+    )
+  )
 
 (defun crystal-imenu-create-index ()
   "Create an imenu index of all methods in the buffer."
@@ -1152,11 +1199,6 @@ delimiter."
                  (back-to-indentation)
                  (not (looking-at crystal-non-block-do-re)))))
          (or (bolp)
-             ;; here for allowing {% %} blocks ? FIXME
-             (save-excursion
-               (back-to-indentation)
-               (skip-chars-forward " \t")
-               (looking-at "{%"))
              (progn
                (forward-char -1)
                (setq w (char-after (point)))
