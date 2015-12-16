@@ -109,7 +109,7 @@
   "Regexp to match the beginning of a defun, in the general sense.")
 
 (defconst crystal-attr-re
-  '"@\\[[A-Z][a-zA-Z0-9_]+\\((.*)\\)?\\]"
+  '"\\(@\\[\\)\\(.*\\)\\(\\]\\)"
   "Regexp to match attributes preceding a method or type")
 
 (defconst crystal-singleton-class-re
@@ -2323,7 +2323,7 @@ See `font-lock-syntax-table'.")
     ("\\(\\$\\|@\\|@@\\)\\(\\w\\|_\\)+"
      0 font-lock-variable-name-face)
     ;; Attributes
-    ("\\(@\\[\\)\\(.*\\)\\(\\]\\)"
+    (, crystal-attr-re
      (1 font-lock-preprocessor-face)
      (3 font-lock-preprocessor-face))
     ;; Constants.
