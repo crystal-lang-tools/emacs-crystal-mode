@@ -337,7 +337,7 @@ explicitly declared in magic comment."
   :type '(repeat (cons (symbol :tag "From") (symbol :tag "To")))
   :group 'crystal)
 
-(defcustom crystal-insert-encoding-magic-comment t
+(defcustom crystal-insert-encoding-magic-comment nil
   "Insert a magic Crystal encoding comment upon save if this is non-nil.
 The encoding will be auto-detected.  The format of the encoding comment
 is customizable via `crystal-encoding-magic-comment-style'.
