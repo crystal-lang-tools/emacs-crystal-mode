@@ -55,7 +55,8 @@
   :group 'languages)
 
 (defconst crystal-block-beg-keywords
-  '("class" "module" "def" "if" "unless" "case" "while" "until" "for" "begin" "do" "macro")
+  '("class" "module" "def" "if" "unless" "case" "while" "until" "for" "begin" "do"
+    "macro" "lib" "enum" "struct")
   "Keywords at the beginning of blocks.")
 
 (defconst crystal-block-beg-re
@@ -67,7 +68,8 @@
   "Regexp to match keywords that nest without blocks.")
 
 (defconst crystal-indent-beg-re
-  (concat "^\\(\\s *" (regexp-opt '("class" "module" "def" "macro")) "\\|"
+  (concat "^\\(\\s *" (regexp-opt '("class" "module" "def" "macro" "lib" "enum" "struct"))
+          "\\|"
           (regexp-opt '("if" "unless" "case" "while" "until" "for" "begin"))
           "\\)\\_>")
   "Regexp to match where the indentation gets deeper.")
@@ -103,8 +105,12 @@
 (defconst crystal-block-end-re "\\_<end\\_>")
 
 (defconst crystal-defun-beg-re
-  '"\\(def\\|class\\|module\\|macro\\)"
+  '"\\(def\\|class\\|module\\|macro\\|lib\\|struct\\|enum\\)"
   "Regexp to match the beginning of a defun, in the general sense.")
+
+(defconst crystal-attr-re
+  '"\\(@\\[\\)\\(.*\\)\\(\\]\\)"
+  "Regexp to match attributes preceding a method or type")
 
 (defconst crystal-singleton-class-re
   "class\\s *<<"
@@ -381,7 +387,8 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
        (exp3 ("def" insts "end")
              ("begin" insts-rescue-insts "end")
              ("do" insts "end")
-             ("class" insts "end") ("module" insts "end")
+             ("class" insts "end") ("module" insts "end") ("struct" insts "end")
+             ("lib" insts "end") ("enum" insts "end")
              ("[" expseq "]")
              ("{" hashvals "}")
              ("{" insts "}")
@@ -720,7 +727,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
      (message "Before ;")
      (cond
       ((smie-rule-parent-p "def" "begin" "do" "class" "module" "{%for%}"
-                           "while" "until" "unless" "macro"
+                           "while" "until" "unless" "macro" "lib" "enum" "struct"
                            "if" "then" "elsif" "else" "when" "{%if%}"
                            "{%elsif%}" "{%else%}" "{%unless%}"
                            "rescue" "ensure" "{")
@@ -2174,10 +2181,12 @@ See `font-lock-syntax-table'.")
           "else"
           "fail"
           "ensure"
+          "enum"
           "for"
           "end"
           "if"
           "in"
+          "lib"
           "macro"
           "module"
           "next"
@@ -2189,6 +2198,7 @@ See `font-lock-syntax-table'.")
           "retry"
           "return"
           "then"
+          "struct"
           "super"
           "unless"
           "undef"
@@ -2312,6 +2322,10 @@ See `font-lock-syntax-table'.")
      0 font-lock-builtin-face)
     ("\\(\\$\\|@\\|@@\\)\\(\\w\\|_\\)+"
      0 font-lock-variable-name-face)
+    ;; Attributes
+    (, crystal-attr-re
+     (1 font-lock-preprocessor-face)
+     (3 font-lock-preprocessor-face))
     ;; Constants.
     ("\\(?:\\_<\\|::\\|\\s+:\\s+\\)\\([A-Z]+\\(\\w\\|_\\)*\\)"
      1 (unless (eq ?\( (char-after)) font-lock-type-face))
