@@ -1,4 +1,4 @@
-;;; crystal-mode.el --- Major mode for editing Ruby files
+;;; crystal-mode.el --- Major mode for editing Crystal files
 
 ;; Copyright (C) 2015 Jason Pellerin
 ;; Authors: Jason Pellerin
