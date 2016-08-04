@@ -399,6 +399,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
              ("unless" insts "end")
              ("if" if-body "end")
              ("for" for-body "end")
+             ("->{" proc-body "}")
              ("macro" insts "end")
              ("{%" exp "%}")
              ("{%for%}" insts "{%end%}")
@@ -418,6 +419,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
        (formal-params ("opening-|" exp "closing-|"))
        (for-body (for-head ";" insts))
        (for-head (exp "in" exp))
+       (proc-body (insts))
        (cases (exp "then" insts)
               (cases "when" cases) (insts "else" insts))
        (expseq (exp) );;(expseq "," expseq)
@@ -2167,9 +2169,8 @@ See `font-lock-syntax-table'.")
     (,(concat
        crystal-font-lock-keyword-beg-re
        (regexp-opt
-        '("->"
-          "alias"
-          "and"
+        '("alias"
+	  "and"
           "begin"
           "break"
           "case"
@@ -2221,7 +2222,6 @@ See `font-lock-syntax-table'.")
           "exec"
           "fork"
           "format"
-          "lambda"
           "load"
           "loop"
           "open"
@@ -2229,11 +2229,9 @@ See `font-lock-syntax-table'.")
           "pp"
           "print"
           "printf"
-          "proc"
           "putc"
           "puts"
           "require"
-          "require_relative"
           "spawn"
           "sprintf"
           "syscall"
@@ -2400,7 +2398,7 @@ See `font-lock-syntax-table'.")
                                      "\\)\\'")) 'crystal-mode))
 
 ;;;###autoload
-(dolist (name (list "crystal" "rbx" "jcrystal" "crystal1.9" "crystal1.8"))
+(dolist (name (list "crystal"))
   (add-to-list 'interpreter-mode-alist (cons (purecopy name) 'crystal-mode)))
 
 (provide 'crystal-mode)
