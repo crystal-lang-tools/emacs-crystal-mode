@@ -87,7 +87,7 @@
   "Regexp to match modifiers.")
 
 (defconst crystal-block-mid-keywords
-  '("then" "else" "elsif" "when" "rescue" "ensure")
+  '("else" "elsif" "when" "rescue" "ensure")
   "Keywords where the indentation gets shallower in middle of block statements.")
 
 (defconst crystal-block-mid-re
@@ -214,7 +214,7 @@ This should only be called after matching against `crystal-here-doc-beg-re'."
 (defconst crystal-indent-level 2
   "Indentation of Crystal statements.")
 
-(defconst crystal-alignable-keywords '(begin def class macro))
+(defconst crystal-alignable-keywords '(begin def class macro while until))
 
 (defcustom crystal-align-chained-calls nil
   "If non-nil, align chained method calls.
@@ -307,18 +307,15 @@ Only has effect when `crystal-use-smie' is nil."
        (formal-params ("opening-|" exp "closing-|"))
        (for-head (exp "in" exp))
        (proc-body (insts))
-       (cases (exp "then" insts)
-              (cases "when" cases) (insts "else" insts))
+       (cases (cases "when" cases) (insts "else" insts))
        (expseq (exp) );;(expseq "," expseq)
        (hashvals (id "=>" exp1) (hashvals "," hashvals))
        (insts-rescue-insts (insts)
                            (insts-rescue-insts "rescue" insts-rescue-insts)
                            (insts-rescue-insts "ensure" insts-rescue-insts))
-       (itheni (insts) (exp "then" insts))
-       (ielsei (itheni) (itheni "else" insts))
+       (ielsei (insts) (insts "else" insts))
        (if-body (ielsei) (if-body "elsif" if-body))
-       (itheni-macro (insts) (exp "{%then%}" insts))
-       (ielsei-macro (itheni-macro) (itheni-macro "{%else%}" insts))
+       (ielsei-macro (insts) (insts "{%else%}" insts))
        (if-macro-body (ielsei-macro) (if-macro-body "{%elsif%}" if-macro-body))
        )
 
@@ -589,7 +586,7 @@ Only has effect when `crystal-use-smie' is nil."
      (cond
       ((smie-rule-parent-p "def" "begin" "do" "class" "module" "{%for%}"
                            "while" "until" "unless" "macro" "lib" "enum" "struct"
-                           "if" "then" "elsif" "else" "when" "{%if%}"
+                           "if" "elsif" "else" "when" "{%if%}"
                            "{%elsif%}" "{%else%}" "{%unless%}"
                            "rescue" "ensure" "{")
        ;; (message "Still got this one %s" (smie-indent--parent))
@@ -655,7 +652,7 @@ Only has effect when `crystal-use-smie' is nil."
      (if (smie-rule-sibling-p)
          (and crystal-align-chained-calls 0)
        crystal-indent-level))
-    (`(:before . ,(or `"else" `"then" `"elsif" `"rescue" `"ensure" `"{%else%}" `"{%elsif%}"))
+    (`(:before . ,(or `"else" `"elsif" `"rescue" `"ensure" `"{%else%}" `"{%elsif%}"))
      (smie-rule-parent))
     (`(:before . "when")
      ;; Align to the previous `when', but look up the virtual
@@ -1667,7 +1664,6 @@ See `font-lock-syntax-table'.")
           "rescue"
           "retry"
           "return"
-          "then"
           "struct"
           "super"
           "unless"
