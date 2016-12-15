@@ -55,7 +55,7 @@
   :group 'languages)
 
 (defconst crystal-block-beg-keywords
-  '("class" "module" "def" "if" "unless" "case" "while" "until" "for" "begin" "do"
+  '("class" "module" "def" "if" "unless" "case" "while" "until" "begin" "do"
     "macro" "lib" "enum" "struct")
   "Keywords at the beginning of blocks.")
 
@@ -70,7 +70,7 @@
 (defconst crystal-indent-beg-re
   (concat "^\\(\\s *" (regexp-opt '("class" "module" "def" "macro" "lib" "enum" "struct"))
           "\\|"
-          (regexp-opt '("if" "unless" "case" "while" "until" "for" "begin"))
+          (regexp-opt '("if" "unless" "case" "while" "until" "begin"))
           "\\)\\_>")
   "Regexp to match where the indentation gets deeper.")
 
@@ -87,7 +87,7 @@
   "Regexp to match modifiers.")
 
 (defconst crystal-block-mid-keywords
-  '("then" "else" "elsif" "when" "rescue" "ensure")
+  '("else" "elsif" "when" "rescue" "ensure")
   "Keywords where the indentation gets shallower in middle of block statements.")
 
 (defconst crystal-block-mid-re
@@ -156,16 +156,8 @@ This should only be called after matching against `crystal-here-doc-beg-re'."
 (defconst crystal-symbol-re (concat "[" crystal-symbol-chars "]")
   "Regexp to match symbols.")
 
-(defvar crystal-use-smie t)
-
 (defvar crystal-mode-map
   (let ((map (make-sparse-keymap)))
-    (unless crystal-use-smie
-      (define-key map (kbd "M-C-b") 'crystal-backward-sexp)
-      (define-key map (kbd "M-C-f") 'crystal-forward-sexp)
-      (define-key map (kbd "M-C-q") 'crystal-indent-exp))
-    (when crystal-use-smie
-      (define-key map (kbd "M-C-d") 'smie-down-list))
     (define-key map (kbd "M-C-p") 'crystal-beginning-of-block)
     (define-key map (kbd "M-C-n") 'crystal-end-of-block)
     (define-key map (kbd "C-c {") 'crystal-toggle-block)
@@ -184,18 +176,9 @@ This should only be called after matching against `crystal-here-doc-beg-re'."
     "--"
     ["Toggle String Quotes" crystal-toggle-string-quotes t]
     "--"
-    ["Backward Sexp" crystal-backward-sexp
-     :visible (not crystal-use-smie)]
-    ["Backward Sexp" backward-sexp
-     :visible crystal-use-smie]
-    ["Forward Sexp" crystal-forward-sexp
-     :visible (not crystal-use-smie)]
-    ["Forward Sexp" forward-sexp
-     :visible crystal-use-smie]
-    ["Indent Sexp" crystal-indent-exp
-     :visible (not crystal-use-smie)]
-    ["Indent Sexp" prog-indent-sexp
-     :visible crystal-use-smie]))
+    ["Backward Sexp" backward-sexp]
+    ["Forward Sexp" forward-sexp]
+    ["Indent Sexp" prog-indent-sexp]))
 
 (defvar crystal-mode-syntax-table
   (let ((table (make-syntax-table)))
@@ -228,61 +211,10 @@ This should only be called after matching against `crystal-here-doc-beg-re'."
     table)
   "Syntax table to use in Crystal mode.")
 
-(defcustom crystal-indent-tabs-mode nil
-  "Indentation can insert tabs in Crystal mode if this is non-nil."
-  :type 'boolean
-  :group 'crystal
-  :safe 'booleanp)
+(defconst crystal-indent-level 2
+  "Indentation of Crystal statements.")
 
-(defcustom crystal-indent-level 2
-  "Indentation of Crystal statements."
-  :type 'integer
-  :group 'crystal
-  :safe 'integerp)
-
-(defcustom crystal-comment-column (default-value 'comment-column)
-  "Indentation column of comments."
-  :type 'integer
-  :group 'crystal
-  :safe 'integerp)
-
-(defconst crystal-alignable-keywords '(if while unless until begin case for def macro)
-  "Keywords that can be used in `crystal-align-to-stmt-keywords'.")
-
-(defcustom crystal-align-to-stmt-keywords '(def)
-  "Keywords after which we align the expression body to statement.
-
-When nil, an expression that begins with one these keywords is
-indented to the column of the keyword.  Example:
-
-  tee = if foo
-          bar
-        else
-          qux
-        end
-
-If this value is t or contains a symbol with the name of given
-keyword, the expression is indented to align to the beginning of
-the statement:
-
-  tee = if foo
-    bar
-  else
-    qux
-  end
-
-Only has effect when `crystal-use-smie' is t.
-"
-  :type `(choice
-          (const :tag "None" nil)
-          (const :tag "All" t)
-          (repeat :tag "User defined"
-                  (choice ,@(mapcar
-                             (lambda (kw) (list 'const kw))
-                             crystal-alignable-keywords))))
-  :group 'crystal
-  :safe 'listp
-  :version "24.4")
+(defconst crystal-alignable-keywords '(begin def class macro while until))
 
 (defcustom crystal-align-chained-calls nil
   "If non-nil, align chained method calls.
@@ -326,46 +258,6 @@ Only has effect when `crystal-use-smie' is nil."
   :type '(choice (const t) (const nil) (const space))
   :group 'crystal)
 
-(defcustom crystal-encoding-map
-  '((us-ascii       . nil)       ;; Do not put coding: us-ascii
-    (shift-jis      . cp932)     ;; Emacs charset name of Shift_JIS
-    (shift_jis      . cp932)     ;; MIME charset name of Shift_JIS
-    (japanese-cp932 . cp932))    ;; Emacs charset name of CP932
-  "Alist to map encoding name from Emacs to Crystal.
-Associating an encoding name with nil means it needs not be
-explicitly declared in magic comment."
-  :type '(repeat (cons (symbol :tag "From") (symbol :tag "To")))
-  :group 'crystal)
-
-(defcustom crystal-insert-encoding-magic-comment nil
-  "Insert a magic Crystal encoding comment upon save if this is non-nil.
-The encoding will be auto-detected.  The format of the encoding comment
-is customizable via `crystal-encoding-magic-comment-style'.
-
-When set to `always-utf8' an utf-8 comment will always be added,
-even if it's not required."
-  :type 'boolean :group 'crystal)
-
-(defcustom crystal-encoding-magic-comment-style 'crystal
-  "The style of the magic encoding comment to use."
-  :type '(choice
-          (const :tag "Emacs Style" emacs)
-          (const :tag "Crystal Style" crystal)
-          (const :tag "Custom Style" custom))
-  :group 'crystal
-  :version "24.4")
-
-(defcustom crystal-custom-encoding-magic-comment-template "# encoding: %s"
-  "A custom encoding comment template.
-It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
-  :type 'string
-  :group 'crystal
-  :version "24.4")
-
-(defcustom crystal-use-encoding-map t
-  "Use `crystal-encoding-map' to set encoding magic comment if this is non-nil."
-  :type 'boolean :group 'crystal)
-
 ;;; SMIE support
 
 (require 'smie)
@@ -376,10 +268,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
     (smie-bnf->prec2
      '((id)
        (insts (inst) (insts ";" insts))
-       (inst (exp) (inst "iuwu-mod" exp)
-             ;; Somewhat incorrect (both can be used multiple times),
-             ;; but avoids lots of conflicts:
-             (exp "and" exp) (exp "or" exp))
+       (inst (exp) (inst "iuwu-mod" exp))
        (exp  (exp1) (exp "," exp) (exp "=" exp)
              (id " @ " exp))
        (exp1 (exp2) (exp2 "?" exp1 ":" exp1))
@@ -398,7 +287,6 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
              ("until" insts "end")
              ("unless" insts "end")
              ("if" if-body "end")
-             ("for" for-body "end")
              ("->{" proc-body "}")
              ("macro" insts "end")
              ("{%" exp "%}")
@@ -417,21 +305,17 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
        ;;(macro-body (macro-insts))
        (macro-exp (for-head))
        (formal-params ("opening-|" exp "closing-|"))
-       (for-body (for-head ";" insts))
        (for-head (exp "in" exp))
        (proc-body (insts))
-       (cases (exp "then" insts)
-              (cases "when" cases) (insts "else" insts))
+       (cases (cases "when" cases) (insts "else" insts))
        (expseq (exp) );;(expseq "," expseq)
        (hashvals (id "=>" exp1) (hashvals "," hashvals))
        (insts-rescue-insts (insts)
                            (insts-rescue-insts "rescue" insts-rescue-insts)
                            (insts-rescue-insts "ensure" insts-rescue-insts))
-       (itheni (insts) (exp "then" insts))
-       (ielsei (itheni) (itheni "else" insts))
+       (ielsei (insts) (insts "else" insts))
        (if-body (ielsei) (if-body "elsif" if-body))
-       (itheni-macro (insts) (exp "{%then%}" insts))
-       (ielsei-macro (itheni-macro) (itheni-macro "{%else%}" insts))
+       (ielsei-macro (insts) (insts "{%else%}" insts))
        (if-macro-body (ielsei-macro) (if-macro-body "{%elsif%}" if-macro-body))
        )
 
@@ -497,17 +381,6 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
                (forward-comment 1)
                (eq (char-after) ?.))))))
 
-(defun crystal-smie--redundant-do-p (&optional skip)
-  (save-excursion
-    (if skip (backward-word 1))
-    (member (nth 2 (smie-backward-sexp ";")) '("while" "until" "for"))))
-
-;; this handles "macro def ... end" blocks
-(defun crystal-smie--redundant-macro-def-p (&optional skip)
-  (save-excursion
-    (if skip (backward-word 1))
-    (member (nth 2 (smie-backward-sexp ";")) '("macro"))))
-
 (defun crystal-smie--opening-pipe-p ()
   (save-excursion
     (if (eq ?| (char-before)) (forward-char -1))
@@ -532,8 +405,8 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
    (save-excursion
      (goto-char pos)
      (or (and (eq (char-syntax (char-after)) ?w)
-              (not (looking-at (regexp-opt '("unless" "if" "while" "until" "or"
-                                             "else" "elsif" "do" "end" "and")
+              (not (looking-at (regexp-opt '("unless" "if" "while" "until"
+                                             "else" "elsif" "do" "end")
                                            'symbols))))
          (memq (car (syntax-after pos)) '(7 15))
          (looking-at "[([]\\|[-+!~]\\sw\\|:\\(?:\\sw\\|\\s.\\)")))))
@@ -554,11 +427,11 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
 
     (cond
      ((looking-at "{%")
-      (message "at a macro stmt")
+      ;; (message "at a macro stmt")
       (forward-char 2)
       (skip-chars-forward " \t")
       (let ((tok (smie-default-forward-token)))
-        (if (member tok '("if" "else" "end" "elsif" "unless" "for" "while"))
+        (if (member tok '("if" "else" "end" "elsif" "unless" "for"))
             (concat "{%" tok "%}")
           ";"
           )
@@ -592,10 +465,16 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
        (t
         (let ((dot (crystal-smie--at-dot-call))
               (tok (smie-default-forward-token)))
-          (message "default forward tok '%s'" tok)
+          ;; (message "default forward tok '%s'" tok)
           (when dot
             (setq tok (concat "." tok)))
           (cond
+           ((equal tok "abstract") ; abstract def doesn't open a block
+            (if (looking-at "\s+def")
+                (progn
+                  (goto-char (match-end 0))
+                  "adef")
+              tok))
            ((member tok '("unless" "if" "while" "until"))
             (if (save-excursion (forward-word -1) (crystal-smie--bosp))
                 tok "iuwu-mod"))
@@ -608,21 +487,9 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
              (t tok)))
            ((and (equal tok "") (looking-at "\\\\\n"))
             (goto-char (match-end 0)) (crystal-smie--forward-token))
-           ((equal tok "def")
-            (cond
-             ((not (crystal-smie--redundant-macro-def-p 'skip)) tok)
-             ((> (save-excursion (forward-comment (point-max)) (point))
-                 (line-end-position))
-              (crystal-smie--forward-token)) ;Fully redundant.
-             (t ";")))
-           ((equal tok "do")
-            (cond
-             ((not (crystal-smie--redundant-do-p 'skip)) tok)
-             ((> (save-excursion (forward-comment (point-max)) (point))
-                 (line-end-position))
-              (crystal-smie--forward-token)) ;Fully redundant.
-             (t ";")))
-           (t (message "forward '%s'" tok) tok)))))))))
+           (t
+            ;; (message "forward '%s'" tok)
+            tok)))))))))
 
 (defun crystal-smie--backward-token ()
   (let ((pos (point)))
@@ -635,16 +502,16 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
      ;;((looking-at crystal-macro-cmd-re) "{%end%}")
      ;;((looking-at crystal-macro-end-cmd-re) (match-string 1))
      ((looking-back "%}")
-      (message "looking back at a macro cmd")
+      ;; (message "looking back at a macro cmd")
       ;; scan backawards to {%
       (re-search-backward "{%")
-      (message "at %s %s" (point) (char-after))
+      ;; (message "at %s %s" (point) (char-after))
       (save-excursion
         (forward-char 2)
         (skip-chars-forward " \t")
         ;; fixme only if token is in if/else/for/end/while/unless
         (let ((tok (smie-default-forward-token)))
-          (if (member tok '("if" "else" "end" "elsif" "unless" "for" "while"))
+          (if (member tok '("if" "else" "end" "elsif" "unless" "for"))
               (concat "{%" tok "%}")
             ";"))))
      ((and (> pos (line-end-position)) (crystal-smie--implicit-semi-p))
@@ -663,7 +530,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
      (t
       (let ((tok (smie-default-backward-token))
             (dot (crystal-smie--at-dot-call)))
-        (message "default backward tok is '%s'" tok)
+        ;; (message "default backward tok is '%s'" tok)
         (when dot
           ;; (message "back dot")
           (setq tok (concat "." tok)))
@@ -689,24 +556,14 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
           ;; (message "back escaped")
           (forward-char -1) (crystal-smie--backward-token))
          ((equal tok "def")
-          ;; (message "back def")
-          (cond
-           ((not (crystal-smie--redundant-macro-def-p)) tok)
-           ((> (save-excursion (forward-word 1)
-                               (forward-comment (point-max)) (point))
-               (line-end-position))
-            (crystal-smie--backward-token)) ;Fully redundant.
-           (t ";")))
-         ((equal tok "do")
-          ;; (message "back do")
-          (cond
-           ((not (crystal-smie--redundant-do-p)) tok)
-           ((> (save-excursion (forward-word 1)
-                               (forward-comment (point-max)) (point))
-               (line-end-position))
-            (crystal-smie--backward-token)) ;Fully redundant.
-           (t ";")))
-         (t (message "backward '%s'" tok) tok)))))))
+          ;; special case for abstract def which doesn't open a block
+          (if (looking-back "abstract\s+")
+              (progn (goto-char (match-beginning 0))
+                     "adef")
+            tok))
+         (t
+          ;; (message "backward '%s'" tok)
+          tok)))))))
 
 (defun crystal-smie--indent-to-stmt ()
   (save-excursion
@@ -714,11 +571,10 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
     (cons 'column (smie-indent-virtual))))
 
 (defun crystal-smie--indent-to-stmt-p (keyword)
-  (or (eq t crystal-align-to-stmt-keywords)
-      (memq (intern keyword) crystal-align-to-stmt-keywords)))
+  (memq (intern keyword) crystal-alignable-keywords))
 
 (defun crystal-smie-rules (kind token)
-  (message "indent '%s' '%s'" kind token)
+  ;; (message "indent '%s' '%s'" kind token)
   (pcase (cons kind token)
     (`(:elem . basic) crystal-indent-level)
     ;; "foo" "bar" is the concatenation of the two strings, so the second
@@ -726,11 +582,11 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
     (`(:elem . args) (if (looking-at "\\s\"") 0))
     ;; (`(:after . ",") (smie-rule-separator kind))
     (`(:before . ";")
-     (message "Before ;")
+     ;; (message "Before ;")
      (cond
       ((smie-rule-parent-p "def" "begin" "do" "class" "module" "{%for%}"
                            "while" "until" "unless" "macro" "lib" "enum" "struct"
-                           "if" "then" "elsif" "else" "when" "{%if%}"
+                           "if" "elsif" "else" "when" "{%if%}"
                            "{%elsif%}" "{%else%}" "{%unless%}"
                            "rescue" "ensure" "{")
        ;; (message "Still got this one %s" (smie-indent--parent))
@@ -740,7 +596,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
       ))
 
     (`(:before . ,(or `"(" `"[" `"{"))
-     (message "Before ( [ {")
+     ;; (message "Before ( [ {")
      (cond
       ((and (equal token "{")
             (not (smie-rule-prev-p "(" "{" "[" "," "=>" "=" "return" ";"))
@@ -748,10 +604,10 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
               (forward-comment -1)
               (not (eq (preceding-char) ?:))))
        ;; Curly block opener.
-       (message "curly block opener")
+       ;; (message "curly block opener")
        (crystal-smie--indent-to-stmt))
       ((smie-rule-hanging-p)
-       (message "hanging p")
+       ;; (message "hanging p")
        ;; Treat purely syntactic block-constructs as being part of their parent,
        ;; when the opening token is hanging and the parent is not an
        ;; open-paren.
@@ -778,7 +634,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
     (`(:after . ,(or `"(" "[" "{"))
      ;; FIXME: Shouldn't this be the default behavior of
      ;; `smie-indent-after-keyword'?
-     (message "After ([{")
+     ;; (message "After ([{")
      (save-excursion
        (forward-char 1)
        (skip-chars-forward " \t")
@@ -787,7 +643,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
        (unless (or (eolp) (forward-comment 1))
          (cons 'column (current-column)))))
     (`(:before . " @ ")
-     (message "Before @")
+     ;; (message "Before @")
      (save-excursion
        (skip-chars-forward " \t")
        (cons 'column (current-column))))
@@ -796,7 +652,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
      (if (smie-rule-sibling-p)
          (and crystal-align-chained-calls 0)
        crystal-indent-level))
-    (`(:before . ,(or `"else" `"then" `"elsif" `"rescue" `"ensure" `"{%else%}" `"{%elsif%}"))
+    (`(:before . ,(or `"else" `"elsif" `"rescue" `"ensure" `"{%else%}" `"{%elsif%}"))
      (smie-rule-parent))
     (`(:before . "when")
      ;; Align to the previous `when', but look up the virtual
@@ -871,88 +727,25 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
   "Jump to the end of the current block or END, whichever is closer."
   (let (state
         (end (or end (point-max))))
-    (if crystal-use-smie
-        (save-restriction
-          (back-to-indentation)
-          (narrow-to-region (point) end)
-          (smie-forward-sexp))
-      (while (and (setq state (apply 'crystal-parse-partial end state))
-                    (>= (nth 2 state) 0) (< (point) end))))))
+    (save-restriction
+      (back-to-indentation)
+      (narrow-to-region (point) end)
+      (smie-forward-sexp))))
 
 (defun crystal-mode-variables ()
   "Set up initial buffer-local variables for Crystal mode."
-  (setq indent-tabs-mode crystal-indent-tabs-mode)
-  (if crystal-use-smie
-      (smie-setup crystal-smie-grammar #'crystal-smie-rules
-                  :forward-token  #'crystal-smie--forward-token
-                  :backward-token #'crystal-smie--backward-token)
-    (setq-local indent-line-function 'crystal-indent-line))
+  (setq indent-tabs-mode nil)
+  (smie-setup crystal-smie-grammar #'crystal-smie-rules
+              :forward-token  #'crystal-smie--forward-token
+              :backward-token #'crystal-smie--backward-token)
   (setq-local comment-start "# ")
   (setq-local comment-end "")
-  (setq-local comment-column crystal-comment-column)
   (setq-local comment-start-skip "#+ *")
   (setq-local parse-sexp-ignore-comments t)
   (setq-local parse-sexp-lookup-properties t)
   (setq-local paragraph-start (concat "$\\|" page-delimiter))
   (setq-local paragraph-separate paragraph-start)
   (setq-local paragraph-ignore-fill-prefix t))
-
-(defun crystal--insert-coding-comment (encoding)
-  "Insert a magic coding comment for ENCODING.
-The style of the comment is controlled by `crystal-encoding-magic-comment-style'."
-  (let ((encoding-magic-comment-template
-         (pcase crystal-encoding-magic-comment-style
-           (`crystal "# coding: %s")
-           (`emacs "# -*- coding: %s -*-")
-           (`custom
-            crystal-custom-encoding-magic-comment-template))))
-    (insert
-     (format encoding-magic-comment-template encoding)
-     "\n")))
-
-(defun crystal--detect-encoding ()
-  (if (eq crystal-insert-encoding-magic-comment 'always-utf8)
-      "utf-8"
-    (let ((coding-system
-           (or save-buffer-coding-system
-               buffer-file-coding-system)))
-      (if coding-system
-          (setq coding-system
-                (or (coding-system-get coding-system 'mime-charset)
-                    (coding-system-change-eol-conversion coding-system nil))))
-      (if coding-system
-          (symbol-name
-           (if crystal-use-encoding-map
-               (let ((elt (assq coding-system crystal-encoding-map)))
-                 (if elt (cdr elt) coding-system))
-             coding-system))
-        "ascii-8bit"))))
-
-(defun crystal--encoding-comment-required-p ()
-  (or (eq crystal-insert-encoding-magic-comment 'always-utf8)
-      (re-search-forward "[^\0-\177]" nil t)))
-
-(defun crystal-mode-set-encoding ()
-  "Insert a magic comment header with the proper encoding if necessary."
-  (save-excursion
-    (widen)
-    (goto-char (point-min))
-    (when (crystal--encoding-comment-required-p)
-      (goto-char (point-min))
-      (let ((coding-system (crystal--detect-encoding)))
-        (when coding-system
-          (if (looking-at "^#!") (beginning-of-line 2))
-          (cond ((looking-at "\\s *#\\s *.*\\(en\\)?coding\\s *:\\s *\\([-a-z0-9_]*\\)")
-                 ;; update existing encoding comment if necessary
-                 (unless (string= (match-string 2) coding-system)
-                   (goto-char (match-beginning 2))
-                   (delete-region (point) (match-end 2))
-                   (insert coding-system)))
-                ((looking-at "\\s *#.*coding\\s *[:=]"))
-                (t (when crystal-insert-encoding-magic-comment
-                     (crystal--insert-coding-comment coding-system))))
-          (when (buffer-modified-p)
-            (basic-save-buffer-1)))))))
 
 (defvar crystal--electric-indent-chars '(?. ?\) ?} ?\]))
 
@@ -974,42 +767,6 @@ The style of the comment is controlled by `crystal-encoding-magic-comment-style'
              (or (eq (match-end 0) pt)
                  ;; Reindent if it wasn't a keyword after all.
                  (eq (match-end 0) (1- pt)))))))))
-
-;; FIXME: Remove this?  It's unused here, but some redefinitions of
-;; `crystal-calculate-indent' in user init files still call it.
-(defun crystal-current-indentation ()
-  "Return the indentation level of current line."
-  (save-excursion
-    (beginning-of-line)
-    (back-to-indentation)
-    (current-column)))
-
-(defun crystal-indent-line (&optional ignored)
-  "Correct the indentation of the current Crystal line."
-  (interactive)
-  (crystal-indent-to (crystal-calculate-indent)))
-
-(defun crystal-indent-to (column)
-  "Indent the current line to COLUMN."
-  (when column
-    (let (shift top beg)
-      (and (< column 0) (error "Invalid nesting"))
-      (setq shift (current-column))
-      (beginning-of-line)
-      (setq beg (point))
-      (back-to-indentation)
-      (setq top (current-column))
-      (skip-chars-backward " \t")
-      (if (>= shift top) (setq shift (- shift top))
-        (setq shift 0))
-      (if (and (bolp)
-               (= column top))
-          (move-to-column (+ column shift))
-        (move-to-column top)
-        (delete-region beg (point))
-        (beginning-of-line)
-        (indent-to column)
-        (move-to-column (+ column shift))))))
 
 (defun crystal-special-char-p (&optional pos)
   "Return t if the character before POS is a special character.
@@ -1345,175 +1102,6 @@ delimiter."
   "Return the indentation level in spaces NEST levels deeper than POS."
   (+ pos (* (or nest 1) crystal-indent-level)))
 
-(defun crystal-calculate-indent (&optional parse-start)
-  "Return the proper indentation level of the current line."
-  ;; TODO: Document body
-  (save-excursion
-    (beginning-of-line)
-    (let ((crystal-indent-point (point))
-          (case-fold-search nil)
-          state eol begin op-end
-          (paren (progn (skip-syntax-forward " ")
-                        (and (char-after) (matching-paren (char-after)))))
-          (indent 0))
-      (if parse-start
-          (goto-char parse-start)
-        (crystal-beginning-of-indent)
-        (setq parse-start (point)))
-      (back-to-indentation)
-      (setq indent (current-column))
-      (setq state (crystal-parse-region parse-start crystal-indent-point))
-      (cond
-       ((nth 0 state)                   ; within string
-        (setq indent nil))              ;  do nothing
-       ((car (nth 1 state))             ; in paren
-        (goto-char (setq begin (cdr (nth 1 state))))
-        (let ((deep (crystal-deep-indent-paren-p (car (nth 1 state)))))
-          (if deep
-              (cond ((and (eq deep t) (eq (car (nth 1 state)) paren))
-                     (skip-syntax-backward " ")
-                     (setq indent (1- (current-column))))
-                    ((let ((s (crystal-parse-region (point) crystal-indent-point)))
-                       (and (nth 2 s) (> (nth 2 s) 0)
-                            (or (goto-char (cdr (nth 1 s))) t)))
-                     (forward-word -1)
-                     (setq indent (crystal-indent-size (current-column)
-						    (nth 2 state))))
-                    (t
-                     (setq indent (current-column))
-                     (cond ((eq deep 'space))
-                           (paren (setq indent (1- indent)))
-                           (t (setq indent (crystal-indent-size (1- indent) 1))))))
-            (if (nth 3 state) (goto-char (nth 3 state))
-              (goto-char parse-start) (back-to-indentation))
-            (setq indent (crystal-indent-size (current-column) (nth 2 state))))
-          (and (eq (car (nth 1 state)) paren)
-               (crystal-deep-indent-paren-p (matching-paren paren))
-               (search-backward (char-to-string paren))
-               (setq indent (current-column)))))
-       ((and (nth 2 state) (> (nth 2 state) 0)) ; in nest
-        (if (null (cdr (nth 1 state)))
-            (error "Invalid nesting"))
-        (goto-char (cdr (nth 1 state)))
-        (forward-word -1)               ; skip back a keyword
-        (setq begin (point))
-        (cond
-         ((looking-at "do\\>[^_]")      ; iter block is a special case
-          (if (nth 3 state) (goto-char (nth 3 state))
-            (goto-char parse-start) (back-to-indentation))
-          (setq indent (crystal-indent-size (current-column) (nth 2 state))))
-         (t
-          (setq indent (+ (current-column) crystal-indent-level)))))
-
-       ((and (nth 2 state) (< (nth 2 state) 0)) ; in negative nest
-        (setq indent (crystal-indent-size (current-column) (nth 2 state)))))
-      (when indent
-        (goto-char crystal-indent-point)
-        (end-of-line)
-        (setq eol (point))
-        (beginning-of-line)
-        (cond
-         ((and (not (crystal-deep-indent-paren-p paren))
-               (re-search-forward crystal-negative eol t))
-          (and (not (eq ?_ (char-after (match-end 0))))
-               (setq indent (- indent crystal-indent-level))))
-         ((and
-           (save-excursion
-             (beginning-of-line)
-             (not (bobp)))
-           (or (crystal-deep-indent-paren-p t)
-               (null (car (nth 1 state)))))
-          ;; goto beginning of non-empty no-comment line
-          (let (end done)
-            (while (not done)
-              (skip-chars-backward " \t\n")
-              (setq end (point))
-              (beginning-of-line)
-              (if (re-search-forward "^\\s *#" end t)
-                  (beginning-of-line)
-                (setq done t))))
-          (end-of-line)
-          ;; skip the comment at the end
-          (skip-chars-backward " \t")
-          (let (end (pos (point)))
-            (beginning-of-line)
-            (while (and (re-search-forward "#" pos t)
-                        (setq end (1- (point)))
-                        (or (crystal-special-char-p end)
-                            (and (setq state (crystal-parse-region
-                                              parse-start end))
-                                 (nth 0 state))))
-              (setq end nil))
-            (goto-char (or end pos))
-            (skip-chars-backward " \t")
-            (setq begin (if (and end (nth 0 state)) pos (cdr (nth 1 state))))
-            (setq state (crystal-parse-region parse-start (point))))
-          (or (bobp) (forward-char -1))
-          (and
-           (or (and (looking-at crystal-symbol-re)
-                    (skip-chars-backward crystal-symbol-chars)
-                    (looking-at (concat "\\<\\(" crystal-block-hanging-re
-                                        "\\)\\>"))
-                    (not (eq (point) (nth 3 state)))
-                    (save-excursion
-                      (goto-char (match-end 0))
-                      (not (looking-at "[a-z_]"))))
-               (and (looking-at crystal-operator-re)
-                    (not (crystal-special-char-p))
-                    (save-excursion
-                      (forward-char -1)
-                      (or (not (looking-at crystal-operator-re))
-                          (not (eq (char-before) ?:))))
-                    ;; Operator at the end of line.
-                    (let ((c (char-after (point))))
-                      (and
-;;                     (or (null begin)
-;;                         (save-excursion
-;;                           (goto-char begin)
-;;                           (skip-chars-forward " \t")
-;;                           (not (or (eolp) (looking-at "#")
-;;                                    (and (eq (car (nth 1 state)) ?{)
-;;                                         (looking-at "|"))))))
-                       ;; Not a regexp or percent literal.
-                       (null (nth 0 (crystal-parse-region (or begin parse-start)
-                                                       (point))))
-                       (or (not (eq ?| (char-after (point))))
-                           (save-excursion
-                             (or (eolp) (forward-char -1))
-                             (cond
-                              ((search-backward "|" nil t)
-                               (skip-chars-backward " \t\n")
-                               (and (not (eolp))
-                                    (progn
-                                      (forward-char -1)
-                                      (not (looking-at "{")))
-                                    (progn
-                                      (forward-word -1)
-                                      (not (looking-at "do\\>[^_]")))))
-                              (t t))))
-                       (not (eq ?, c))
-                       (setq op-end t)))))
-           (setq indent
-                 (cond
-                  ((and
-                    (null op-end)
-                    (not (looking-at (concat "\\<\\(" crystal-block-hanging-re
-                                             "\\)\\>")))
-                    (eq (crystal-deep-indent-paren-p t) 'space)
-                    (not (bobp)))
-                   (widen)
-                   (goto-char (or begin parse-start))
-                   (skip-syntax-forward " ")
-                   (current-column))
-                  ((car (nth 1 state)) indent)
-                  (t
-                   (+ indent crystal-indent-level))))))))
-      (goto-char crystal-indent-point)
-      (beginning-of-line)
-      (skip-syntax-forward " ")
-      (if (looking-at "\\.[^.]")
-          (+ indent crystal-indent-level)
-        indent))))
 
 (defun crystal-beginning-of-defun (&optional arg)
   "Move backward to the beginning of the current defun.
@@ -1616,125 +1204,6 @@ With ARG, move out of multiple blocks."
   (interactive "p")
   (crystal-move-to-block (or arg 1)))
 
-(defun crystal-forward-sexp (&optional arg)
-  "Move forward across one balanced expression (sexp).
-With ARG, do it many times.  Negative ARG means move backward."
-  ;; TODO: Document body
-  (interactive "p")
-  (cond
-   (crystal-use-smie (forward-sexp arg))
-   ((and (numberp arg) (< arg 0)) (crystal-backward-sexp (- arg)))
-   (t
-    (let ((i (or arg 1)))
-      (condition-case nil
-          (while (> i 0)
-            (skip-syntax-forward " ")
-	    (if (looking-at ",\\s *") (goto-char (match-end 0)))
-            (cond ((looking-at "\\?\\(\\\\[CM]-\\)*\\\\?\\S ")
-                   (goto-char (match-end 0)))
-                  ((progn
-                     (skip-chars-forward ",.:;|&^~=!?\\+\\-\\*")
-                     (looking-at "\\s("))
-                   (goto-char (scan-sexps (point) 1)))
-                  ((and (looking-at (concat "\\<\\(" crystal-block-beg-re
-                                            "\\)\\>"))
-                        (not (eq (char-before (point)) ?.))
-                        (not (eq (char-before (point)) ?:)))
-                   (crystal-end-of-block)
-                   (forward-word 1))
-                  ((looking-at "\\(\\$\\|@@?\\)?\\sw")
-                   (while (progn
-                            (while (progn (forward-word 1) (looking-at "_")))
-                            (cond ((looking-at "::") (forward-char 2) t)
-                                  ((> (skip-chars-forward ".") 0))
-                                  ((looking-at "\\?\\|!\\(=[~=>]\\|[^~=]\\)")
-                                   (forward-char 1) nil)))))
-                  ((let (state expr)
-                     (while
-                         (progn
-                           (setq expr (or expr (crystal-expr-beg)
-                                          (looking-at "%\\sw?\\Sw\\|[\"'`/]")))
-                           (nth 1 (setq state (apply #'crystal-parse-partial
-                                                     nil state))))
-                       (setq expr t)
-                       (skip-chars-forward "<"))
-                     (not expr))))
-            (setq i (1- i)))
-        ((error) (forward-word 1)))
-      i))))
-
-(defun crystal-backward-sexp (&optional arg)
-  "Move backward across one balanced expression (sexp).
-With ARG, do it many times.  Negative ARG means move forward."
-  ;; TODO: Document body
-  (interactive "p")
-  (cond
-   (crystal-use-smie (backward-sexp arg))
-   ((and (numberp arg) (< arg 0)) (crystal-forward-sexp (- arg)))
-   (t
-    (let ((i (or arg 1)))
-      (condition-case nil
-          (while (> i 0)
-            (skip-chars-backward " \t\n,.:;|&^~=!?\\+\\-\\*")
-            (forward-char -1)
-            (cond ((looking-at "\\s)")
-                   (goto-char (scan-sexps (1+ (point)) -1))
-                   (pcase (char-before)
-                     (`?% (forward-char -1))
-                     ((or `?q `?Q `?w `?W `?r `?x)
-                      (if (eq (char-before (1- (point))) ?%)
-                          (forward-char -2))))
-                   nil)
-                  ((looking-at "\\s\"\\|\\\\\\S_")
-                   (let ((c (char-to-string (char-before (match-end 0)))))
-                     (while (and (search-backward c)
-				 (eq (logand (skip-chars-backward "\\") 1)
-				     1))))
-                   nil)
-                  ((looking-at "\\s.\\|\\s\\")
-                   (if (crystal-special-char-p) (forward-char -1)))
-                  ((looking-at "\\s(") nil)
-                  (t
-                   (forward-char 1)
-                   (while (progn (forward-word -1)
-                                 (pcase (char-before)
-                                   (`?_ t)
-                                   (`?. (forward-char -1) t)
-                                   ((or `?$ `?@)
-                                    (forward-char -1)
-                                    (and (eq (char-before) (char-after))
-                                         (forward-char -1)))
-                                   (`?:
-                                    (forward-char -1)
-                                    (eq (char-before) :)))))
-                   (if (looking-at crystal-block-end-re)
-                       (crystal-beginning-of-block))
-                   nil))
-            (setq i (1- i)))
-        ((error)))
-      i))))
-
-(defun crystal-indent-exp (&optional ignored)
-  "Indent each line in the balanced expression following the point."
-  (interactive "*P")
-  (let ((here (point-marker)) start top column (nest t))
-    (set-marker-insertion-type here t)
-    (unwind-protect
-        (progn
-          (beginning-of-line)
-          (setq start (point) top (current-indentation))
-          (while (and (not (eobp))
-                      (progn
-                        (setq column (crystal-calculate-indent start))
-                        (cond ((> column top)
-                               (setq nest t))
-                              ((and (= column top) nest)
-                               (setq nest nil) t))))
-            (crystal-indent-to column)
-            (beginning-of-line 2)))
-      (goto-char here)
-      (set-marker here nil))))
-
 (defun crystal-add-log-current-method ()
   "Return the current method name as a string.
 This string includes all namespaces.
@@ -1822,7 +1291,7 @@ See `add-log-current-defun-function'."
 (defun crystal-block-contains-point (pt)
   (save-excursion
     (save-match-data
-      (crystal-forward-sexp)
+      (forward-sexp)
       (> (point) pt))))
 
 (defun crystal-brace-to-do-end (orig end)
@@ -1899,7 +1368,7 @@ If the result is do-end block, it will always be multiline."
                  (progn
                    (goto-char (or (match-beginning 1) (match-beginning 2)))
                    (setq beg (point))
-                   (save-match-data (crystal-forward-sexp))
+                   (save-match-data (forward-sexp))
                    (setq end (point))
                    (> end start)))
             (if (match-beginning 1)
@@ -2169,8 +1638,7 @@ See `font-lock-syntax-table'.")
     (,(concat
        crystal-font-lock-keyword-beg-re
        (regexp-opt
-        '("alias"
-	  "and"
+        '("abstract"
           "begin"
           "break"
           "case"
@@ -2191,14 +1659,11 @@ See `font-lock-syntax-table'.")
           "macro"
           "module"
           "next"
-          "not"
           "of"
-          "or"
           "redo"
           "rescue"
           "retry"
           "return"
-          "then"
           "struct"
           "super"
           "unless"
@@ -2380,7 +1845,6 @@ See `font-lock-syntax-table'.")
   (setq-local beginning-of-defun-function 'crystal-beginning-of-defun)
   (setq-local end-of-defun-function 'crystal-end-of-defun)
 
-  (add-hook 'after-save-hook 'crystal-mode-set-encoding nil 'local)
   (add-hook 'electric-indent-functions 'crystal--electric-indent-p nil 'local)
 
   (setq-local font-lock-defaults '((crystal-font-lock-keywords) nil nil))
