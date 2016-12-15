@@ -2332,7 +2332,7 @@ See `font-lock-syntax-table'.")
     ;; Conversion methods on Kernel.
     (,(concat crystal-font-lock-keyword-beg-re
               (regexp-opt '("Array" "Complex" "Float" "Hash"
-                            "Integer" "Rational" "String") 'symbols))
+                            "Integer" "Rational" "String" "Tuple" "NamedTuple") 'symbols))
      (1 font-lock-builtin-face))
     ;; Expression expansion.
     (crystal-match-expression-expansion
