@@ -55,8 +55,7 @@
   :group 'languages)
 
 (defconst crystal-block-beg-keywords
-  '("class" "module" "def" "if" "unless" "case" "while" "until" "begin" "do"
-    "macro" "lib" "enum" "struct")
+  '("class" "module" "def" "if" "unless" "case" "while" "until" "for" "begin" "do" "macro" "lib" "struct" "enum")
   "Keywords at the beginning of blocks.")
 
 (defconst crystal-block-beg-re
@@ -68,9 +67,8 @@
   "Regexp to match keywords that nest without blocks.")
 
 (defconst crystal-indent-beg-re
-  (concat "^\\(\\s *" (regexp-opt '("class" "module" "def" "macro" "lib" "enum" "struct"))
-          "\\|"
-          (regexp-opt '("if" "unless" "case" "while" "until" "begin"))
+  (concat "^\\(\\s *" (regexp-opt '("class" "module" "def" "macro" "lib" "struct" "enum")) "\\|"
+          (regexp-opt '("if" "unless" "case" "while" "until" "for" "begin"))
           "\\)\\_>")
   "Regexp to match where the indentation gets deeper.")
 
@@ -293,7 +291,12 @@ Only has effect when `crystal-use-smie' is nil."
              ("{%for%}" insts "{%end%}")
              ("{%if%}" if-macro-body "{%end%}")
              ("{%unless%}" insts "{%end%}")
-             ("case"  cases "end"))
+             ("case"  cases "end")
+             ("lib" insts "end")
+             ("struct" insts "end")
+             ("enum" insts "end")
+             ("fun" insts "end")
+             ("type" insts "end"))
        ;;(macro-cmd (inst) (forexp))
        ;;(macro-cmds (macro-cmd) (macro-cmds ";" macro-cmds))
        ;;(macro-start ("{%" macro-cmd "%}"))
@@ -588,7 +591,8 @@ Only has effect when `crystal-use-smie' is nil."
                            "while" "until" "unless" "macro" "lib" "enum" "struct"
                            "if" "elsif" "else" "when" "{%if%}"
                            "{%elsif%}" "{%else%}" "{%unless%}"
-                           "rescue" "ensure" "{")
+                           "rescue" "ensure" "{"
+                           "lib" "struct" "enum" "fun" "type")
        ;; (message "Still got this one %s" (smie-indent--parent))
        (smie-rule-parent crystal-indent-level))
       ;; For (invalid) code between switch and case.
@@ -1671,7 +1675,12 @@ See `font-lock-syntax-table'.")
           "until"
           "when"
           "while"
-          "yield")
+          "yield"
+          "lib"
+          "struct"
+          "enum"
+          "fun"
+          "type")
         'symbols))
      (1 font-lock-keyword-face))
     ;; Core methods that have required arguments.
