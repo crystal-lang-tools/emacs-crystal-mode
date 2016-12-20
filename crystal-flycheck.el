@@ -2,7 +2,7 @@
   "A Crystal syntax checker using crystal build"
   :command ("crystal"
             "build"
-            "--no-build"
+            "--no-codegen"
             "--no-color"
             source-inplace)
   :error-patterns

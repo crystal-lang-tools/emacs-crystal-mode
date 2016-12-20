@@ -56,7 +56,7 @@
 
 (defconst crystal-block-beg-keywords
   '("class" "module" "def" "if" "unless" "case" "while" "until" "for" "begin" "do"
-    "macro" "lib" "enum" "struct")
+    "macro" "lib" "enum" "struct" "describe" "it")
   "Keywords at the beginning of blocks.")
 
 (defconst crystal-block-beg-re
