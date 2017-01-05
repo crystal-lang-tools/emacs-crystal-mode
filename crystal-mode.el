@@ -405,7 +405,12 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
              ("{%for%}" insts "{%end%}")
              ("{%if%}" if-macro-body "{%end%}")
              ("{%unless%}" insts "{%end%}")
-             ("case"  cases "end"))
+             ("case"  cases "end")
+             ("lib" insts "end")
+             ("struct" insts "end")
+             ("enum" insts "end")
+             ("fun" insts "end")
+             ("type" insts "end"))
        ;;(macro-cmd (inst) (forexp))
        ;;(macro-cmds (macro-cmd) (macro-cmds ";" macro-cmds))
        ;;(macro-start ("{%" macro-cmd "%}"))
@@ -554,7 +559,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
 
     (cond
      ((looking-at "{%")
-      (message "at a macro stmt")
+      ;; (message "at a macro stmt")
       (forward-char 2)
       (skip-chars-forward " \t")
       (let ((tok (smie-default-forward-token)))
@@ -644,10 +649,10 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
      ;;((looking-at crystal-macro-cmd-re) "{%end%}")
      ;;((looking-at crystal-macro-end-cmd-re) (match-string 1))
      ((looking-back "%}")
-      (message "looking back at a macro cmd")
+      ;; (message "looking back at a macro cmd")
       ;; scan backawards to {%
       (re-search-backward "{%")
-      (message "at %s %s" (point) (char-after))
+      ;; (message "at %s %s" (point) (char-after))
       (save-excursion
         (forward-char 2)
         (skip-chars-forward " \t")
@@ -729,7 +734,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
       (memq (intern keyword) crystal-align-to-stmt-keywords)))
 
 (defun crystal-smie-rules (kind token)
-  (message "indent '%s' '%s'" kind token)
+  ;; (message "indent '%s' '%s'" kind token)
   (pcase (cons kind token)
     (`(:elem . basic) crystal-indent-level)
     ;; "foo" "bar" is the concatenation of the two strings, so the second
@@ -737,7 +742,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
     (`(:elem . args) (if (looking-at "\\s\"") 0))
     ;; (`(:after . ",") (smie-rule-separator kind))
     (`(:before . ";")
-     (message "Before ;")
+     ;; (message "Before ;")
      (cond
       ((smie-rule-parent-p "def" "begin" "do" "class" "module" "{%for%}"
                            "while" "until" "unless" "macro" "lib" "enum" "struct"
@@ -751,7 +756,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
       ))
 
     (`(:before . ,(or `"(" `"[" `"{"))
-     (message "Before ( [ {")
+     ;; (message "Before ( [ {")
      (cond
       ((and (equal token "{")
             (not (smie-rule-prev-p "(" "{" "[" "," "=>" "=" "return" ";"))
@@ -759,10 +764,10 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
               (forward-comment -1)
               (not (eq (preceding-char) ?:))))
        ;; Curly block opener.
-       (message "curly block opener")
+       ;; (message "curly block opener")
        (crystal-smie--indent-to-stmt))
       ((smie-rule-hanging-p)
-       (message "hanging p")
+       ;; (message "hanging p")
        ;; Treat purely syntactic block-constructs as being part of their parent,
        ;; when the opening token is hanging and the parent is not an
        ;; open-paren.
@@ -789,7 +794,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
     (`(:after . ,(or `"(" "[" "{"))
      ;; FIXME: Shouldn't this be the default behavior of
      ;; `smie-indent-after-keyword'?
-     (message "After ([{")
+     ;; (message "After ([{")
      (save-excursion
        (forward-char 1)
        (skip-chars-forward " \t")
@@ -798,7 +803,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
        (unless (or (eolp) (forward-comment 1))
          (cons 'column (current-column)))))
     (`(:before . " @ ")
-     (message "Before @")
+     ;; (message "Before @")
      (save-excursion
        (skip-chars-forward " \t")
        (cons 'column (current-column))))
@@ -2217,7 +2222,12 @@ See `font-lock-syntax-table'.")
           "until"
           "when"
           "while"
-          "yield")
+          "yield"
+          "lib"
+          "struct"
+          "enum"
+          "fun"
+          "type")
         'symbols))
      (1 font-lock-keyword-face))
     ;; Core methods that have required arguments.
