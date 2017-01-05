@@ -246,7 +246,7 @@ This should only be called after matching against `crystal-here-doc-beg-re'."
   :group 'crystal
   :safe 'integerp)
 
-(defconst crystal-alignable-keywords '(if while unless until begin case for def macro)
+(defconst crystal-alignable-keywords '(if while unless until begin case for def macro class)
   "Keywords that can be used in `crystal-align-to-stmt-keywords'.")
 
 (defcustom crystal-align-to-stmt-keywords '(def)
@@ -592,7 +592,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
        (t
         (let ((dot (crystal-smie--at-dot-call))
               (tok (smie-default-forward-token)))
-          (message "default forward tok '%s'" tok)
+          ;;(message "default forward tok '%s'" tok)
           (when dot
             (setq tok (concat "." tok)))
           (cond
@@ -615,6 +615,12 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
                  (line-end-position))
               (crystal-smie--forward-token)) ;Fully redundant.
              (t ";")))
+           ((equal tok "class")
+            (cond
+             ((> (save-excursion (forward-comment (point-max)) (point))
+                 (line-end-position))
+              (crystal-smie--forward-token)) ;Fully redundant.
+             (t ";")))
            ((equal tok "do")
             (cond
              ((not (crystal-smie--redundant-do-p 'skip)) tok)
@@ -622,7 +628,10 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
                  (line-end-position))
               (crystal-smie--forward-token)) ;Fully redundant.
              (t ";")))
-           (t (message "forward '%s'" tok) tok)))))))))
+           (t
+            ;;(message "forward '%s'" tok)
+            tok)
+           ))))))))
 
 (defun crystal-smie--backward-token ()
   (let ((pos (point)))
@@ -663,7 +672,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
      (t
       (let ((tok (smie-default-backward-token))
             (dot (crystal-smie--at-dot-call)))
-        (message "default backward tok is '%s'" tok)
+        ;;(message "default backward tok is '%s'" tok)
         (when dot
           ;; (message "back dot")
           (setq tok (concat "." tok)))
@@ -689,7 +698,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
           ;; (message "back escaped")
           (forward-char -1) (crystal-smie--backward-token))
          ((equal tok "def")
-          ;; (message "back def")
+           ;; (message "back def")
           (cond
            ((not (crystal-smie--redundant-macro-def-p)) tok)
            ((> (save-excursion (forward-word 1)
@@ -706,7 +715,9 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
                (line-end-position))
             (crystal-smie--backward-token)) ;Fully redundant.
            (t ";")))
-         (t (message "backward '%s'" tok) tok)))))))
+         (t
+          ;;(message "backward '%s'" tok)
+          tok)))))))
 
 (defun crystal-smie--indent-to-stmt ()
   (save-excursion
@@ -733,7 +744,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
                            "if" "then" "elsif" "else" "when" "{%if%}"
                            "{%elsif%}" "{%else%}" "{%unless%}"
                            "rescue" "ensure" "{")
-       ;; (message "Still got this one %s" (smie-indent--parent))
+       ;;(message "Still got this one %s" (smie-indent--parent))
        (smie-rule-parent crystal-indent-level))
       ;; For (invalid) code between switch and case.
       ;; (if (smie-parent-p "switch") 4)
@@ -2273,6 +2284,7 @@ See `font-lock-syntax-table'.")
           "exit"
           "exit!"
           "fail"
+          "abstract"
           "private"
           "protected"
           "public"
