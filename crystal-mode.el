@@ -734,13 +734,16 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
       (memq (intern keyword) crystal-align-to-stmt-keywords)))
 
 (defun crystal-smie-rules (kind token)
-  ;; (message "indent '%s' '%s'" kind token)
+   (message "indent '%s' '%s'" kind token)
   (pcase (cons kind token)
     (`(:elem . basic) crystal-indent-level)
     ;; "foo" "bar" is the concatenation of the two strings, so the second
     ;; should be aligned with the first.
     (`(:elem . args) (if (looking-at "\\s\"") 0))
     ;; (`(:after . ",") (smie-rule-separator kind))
+    (`(:after . ,(or `"{%else%}" `"{%elsif%}" ))
+      (smie-rule-parent crystal-indent-level)
+     )
     (`(:before . ";")
      ;; (message "Before ;")
      (cond
@@ -749,7 +752,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
                            "if" "then" "elsif" "else" "when" "{%if%}"
                            "{%elsif%}" "{%else%}" "{%unless%}"
                            "rescue" "ensure" "{")
-       ;;(message "Still got this one %s" (smie-indent--parent))
+       (message "Still got this one %s" (smie-indent--parent))
        (smie-rule-parent crystal-indent-level))
       ;; For (invalid) code between switch and case.
       ;; (if (smie-parent-p "switch") 4)
