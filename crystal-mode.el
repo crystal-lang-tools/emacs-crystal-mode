@@ -563,7 +563,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
       (forward-char 2)
       (skip-chars-forward " \t")
       (let ((tok (smie-default-forward-token)))
-        (if (member tok '("if" "else" "end" "elsif" "unless" "for" "while"))
+        (if (member tok '("end" "else" "elsif"))
             (concat "{%" tok "%}")
           ";"
           )
