@@ -1,3 +1,5 @@
+(require 'flycheck)
+
 (flycheck-define-checker crystal-build
   "A Crystal syntax checker using crystal build"
   :command ("crystal"
