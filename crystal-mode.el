@@ -173,6 +173,8 @@ This should only be called after matching against `crystal-here-doc-beg-re'."
     map)
   "Keymap used in Crystal mode.")
 
+(defvar crystal-buffer-name "*crystal*")
+
 (easy-menu-define
   crystal-mode-menu
   crystal-mode-map
@@ -195,7 +197,9 @@ This should only be called after matching against `crystal-here-doc-beg-re'."
     ["Indent Sexp" crystal-indent-exp
      :visible (not crystal-use-smie)]
     ["Indent Sexp" prog-indent-sexp
-     :visible crystal-use-smie]))
+     :visible crystal-use-smie]
+    "--"
+    ["Format" crystal-format t]))
 
 (defvar crystal-mode-syntax-table
   (let ((table (make-syntax-table)))
@@ -239,6 +243,11 @@ This should only be called after matching against `crystal-here-doc-beg-re'."
   :type 'integer
   :group 'crystal
   :safe 'integerp)
+
+(defcustom crystal-executable "crystal"
+  "Location of Crystal executable."
+  :type 'string
+  :group 'crystal)
 
 (defcustom crystal-comment-column (default-value 'comment-column)
   "Indentation column of comments."
@@ -2392,6 +2401,22 @@ See `font-lock-syntax-table'.")
       (or (and (setq value (get-text-property pos prop))
                (progn (set-match-data value) t))
           (crystal-match-expression-expansion limit)))))
+
+;;;; Crystal tooling functions
+(defun crystal-exec (args output-buffer-name)
+  "Run crystal with the supplied args and put the result in output-buffer-name"
+  (apply 'call-process
+         (append (list crystal-executable nil output-buffer-name t)
+                 args)))
+
+(defun crystal-format ()
+  "Format the contents of the current buffer without persisting the result."
+  (interactive)
+  (let ((oldbuf (current-buffer))
+        (name (make-temp-file "crystal-format")))
+    (with-temp-file name (insert-buffer-substring oldbuf))
+    (crystal-exec (list "tool" "format" name) "*messages*")
+    (insert-file-contents name nil nil nil t)))
 
 ;;;###autoload
 (define-derived-mode crystal-mode prog-mode "Crystal"
