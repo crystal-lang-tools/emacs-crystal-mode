@@ -199,7 +199,8 @@ This should only be called after matching against `crystal-here-doc-beg-re'."
     ["Indent Sexp" prog-indent-sexp
      :visible crystal-use-smie]
     "--"
-    ["Format" crystal-format t]))
+    ["Format" crystal-tool-format t]
+    ["Expand macro" crystal-tool-expand t]))
 
 (defvar crystal-mode-syntax-table
   (let ((table (make-syntax-table)))
@@ -2409,7 +2410,7 @@ See `font-lock-syntax-table'.")
          (append (list crystal-executable nil output-buffer-name t)
                  args)))
 
-(defun crystal-format ()
+(defun crystal-tool-format ()
   "Format the contents of the current buffer without persisting the result."
   (interactive)
   (let ((oldbuf (current-buffer))
@@ -2417,6 +2418,23 @@ See `font-lock-syntax-table'.")
     (with-temp-file name (insert-buffer-substring oldbuf))
     (crystal-exec (list "tool" "format" name) "*messages*")
     (insert-file-contents name nil nil nil t)))
+
+(defun crystal-tool-expand ()
+  "Expand macro at point."
+  (interactive)
+  (let* ((name buffer-file-name)
+         (lineno (number-to-string (line-number-at-pos)))
+         (colno (number-to-string (current-column)))
+         (bname "*Macro Expansion*")
+         (buffer (get-buffer-create bname)))
+    (with-current-buffer buffer
+      (erase-buffer)
+      (funcall 'crystal-mode)
+      (with-project-root
+          (crystal-exec (list "tool" "expand" "-c"
+                              (concat name ":" lineno ":" colno) name)
+                        bname)))
+    (display-buffer buffer)))
 
 ;;;###autoload
 (define-derived-mode crystal-mode prog-mode "Crystal"
