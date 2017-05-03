@@ -199,7 +199,9 @@ This should only be called after matching against `crystal-here-doc-beg-re'."
     ["Indent Sexp" prog-indent-sexp
      :visible crystal-use-smie]
     "--"
-    ["Format" crystal-format t]))
+    ["Format" crystal-tool-format t]
+    ["Expand macro" crystal-tool-expand t]))
+
 
 (defvar crystal-mode-syntax-table
   (let ((table (make-syntax-table)))
@@ -1046,7 +1048,7 @@ Special characters are `?', `$', `:' when preceded by whitespace,
 and `\\' when preceded by `?'."
   (setq pos (or pos (point)))
   (let ((c (char-before pos)) (b (and (< (point-min) pos)
-				      (char-before (1- pos)))))
+                                      (char-before (1- pos)))))
     (cond ((or (eq c ??) (eq c ?$)))
           ((and (eq c ?:) (or (not b) (eq (char-syntax b) ? ))))
           ((eq c ?\\) (eq b ??)))))
@@ -1339,7 +1341,7 @@ delimiter."
        ((looking-at "^__END__$")
         (goto-char pnt))
        ((and (looking-at crystal-here-doc-beg-re)
-	     (boundp 'crystal-indent-point))
+             (boundp 'crystal-indent-point))
         (if (re-search-forward (crystal-here-doc-end-match)
                                crystal-indent-point t)
             (forward-line 1)
@@ -1406,7 +1408,7 @@ delimiter."
                             (or (goto-char (cdr (nth 1 s))) t)))
                      (forward-word -1)
                      (setq indent (crystal-indent-size (current-column)
-						    (nth 2 state))))
+                                                    (nth 2 state))))
                     (t
                      (setq indent (current-column))
                      (cond ((eq deep 'space))
@@ -1657,7 +1659,7 @@ With ARG, do it many times.  Negative ARG means move backward."
       (condition-case nil
           (while (> i 0)
             (skip-syntax-forward " ")
-	    (if (looking-at ",\\s *") (goto-char (match-end 0)))
+            (if (looking-at ",\\s *") (goto-char (match-end 0)))
             (cond ((looking-at "\\?\\(\\\\[CM]-\\)*\\\\?\\S ")
                    (goto-char (match-end 0)))
                   ((progn
@@ -1716,8 +1718,8 @@ With ARG, do it many times.  Negative ARG means move forward."
                   ((looking-at "\\s\"\\|\\\\\\S_")
                    (let ((c (char-to-string (char-before (match-end 0)))))
                      (while (and (search-backward c)
-				 (eq (logand (skip-chars-backward "\\") 1)
-				     1))))
+                                 (eq (logand (skip-chars-backward "\\") 1)
+                                     1))))
                    nil)
                   ((looking-at "\\s.\\|\\s\\")
                    (if (crystal-special-char-p) (forward-char -1)))
@@ -2198,7 +2200,7 @@ See `font-lock-syntax-table'.")
        crystal-font-lock-keyword-beg-re
        (regexp-opt
         '("alias"
-	  "and"
+          "and"
           "begin"
           "break"
           "case"
@@ -2409,7 +2411,7 @@ See `font-lock-syntax-table'.")
          (append (list crystal-executable nil output-buffer-name t)
                  args)))
 
-(defun crystal-format ()
+(defun crystal-tool-format ()
   "Format the contents of the current buffer without persisting the result."
   (interactive)
   (let ((oldbuf (current-buffer))
@@ -2417,6 +2419,23 @@ See `font-lock-syntax-table'.")
     (with-temp-file name (insert-buffer-substring oldbuf))
     (crystal-exec (list "tool" "format" name) "*messages*")
     (insert-file-contents name nil nil nil t)))
+
+(defun crystal-tool-expand ()
+  "Expand macro at point."
+  (interactive)
+  (let* ((name buffer-file-name)
+         (lineno (number-to-string (line-number-at-pos)))
+         (colno (number-to-string (current-column)))
+         (bname "*Macro Expansion*")
+         (buffer (get-buffer-create bname)))
+    (with-current-buffer buffer
+      (erase-buffer)
+      (funcall 'crystal-mode)
+      (with-project-root
+          (crystal-exec (list "tool" "expand" "-c"
+                              (concat name ":" lineno ":" colno) name)
+                        bname)))
+    (display-buffer buffer)))
 
 ;;;###autoload
 (define-derived-mode crystal-mode prog-mode "Crystal"
