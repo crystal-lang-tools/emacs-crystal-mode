@@ -2,24 +2,15 @@
 
 ;; Copyright (C) 2015 Jason Pellerin
 ;; Authors: Jason Pellerin
-;; URL: https://github.com/jpellerin/emacs-crystal-mode
+;; URL: https://github.com/crystal-lang-tools/emacs-crystal-mode
 ;; Created: Tue Jun 23 2015
 ;; Keywords: languages crystal
-;; Version 0.1
+;; Version: 0.1
 
 
 ;; Based on on ruby-mode.el
 
-;; Copyright (C) 1994-2015 Free Software Foundation, Inc.
-
-;; Authors: Yukihiro Matsumoto
-;;  Nobuyoshi Nakada
-;; URL: http://www.emacswiki.org/cgi-bin/wiki/RubyMode
-;; Created: Fri Feb  4 14:49:13 JST 1994
-;; Keywords: languages ruby
-;; Version: 1.2
-
-;; This file is part of GNU Emacs.
+;; This file is not part of GNU Emacs.
 
 ;; GNU Emacs is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
