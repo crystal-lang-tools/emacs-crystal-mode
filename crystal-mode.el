@@ -6,6 +6,7 @@
 ;; Created: Tue Jun 23 2015
 ;; Keywords: languages crystal
 ;; Version: 0.1
+;; Package-Requires: ((emacs "24.3"))
 
 
 ;; Based on on ruby-mode.el
