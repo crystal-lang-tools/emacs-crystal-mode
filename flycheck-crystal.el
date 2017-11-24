@@ -32,6 +32,17 @@
 
 (require 'flycheck)
 
+(defun flycheck-crystal--find-default-directory (_checker)
+  "Come up with a suitable default directory to run CHECKER in.
+This will either be the directory that contains `shard.yml' or,
+if no such file is found in the directory hierarchy, the directory
+of the current file."
+  (or
+   (and
+    buffer-file-name
+    (locate-dominating-file buffer-file-name "shard.yml"))
+default-directory))
+
 (flycheck-define-checker crystal-build
   "A Crystal syntax checker using crystal build"
   :command ("crystal"
@@ -39,6 +50,7 @@
             "--no-codegen"
             "--no-color"
             source-inplace)
+  :working-directory flycheck-crystal--find-default-directory
   :error-patterns
   ((error line-start "Error in " (file-name) ":" line ":" (message) line-end)
    (error line-start "Syntax error in " (file-name) ":" line ":" (message) line-end)
