@@ -192,6 +192,7 @@ This should only be called after matching against `crystal-here-doc-beg-re'."
      :visible crystal-use-smie]
     "--"
     ["Format" crystal-format t]))
+    ["Expand macro" crystal-tool-expand t]))
 
 (defvar crystal-mode-syntax-table
   (let ((table (make-syntax-table)))
@@ -2398,9 +2399,10 @@ See `font-lock-syntax-table'.")
 ;;;; Crystal tooling functions
 (defun crystal-exec (args output-buffer-name)
   "Run crystal with the supplied args and put the result in output-buffer-name"
-  (apply 'call-process
-         (append (list crystal-executable nil output-buffer-name t)
-                 args)))
+  (let ((default-directory (crystal-find-project-root)))
+    (apply 'call-process
+           (append (list crystal-executable nil output-buffer-name t)
+                   args))))
 
 (defun crystal-format ()
   "Format the contents of the current buffer without persisting the result."
@@ -2410,6 +2412,33 @@ See `font-lock-syntax-table'.")
     (with-temp-file name (insert-buffer-substring oldbuf))
     (crystal-exec (list "tool" "format" name) "*messages*")
     (insert-file-contents name nil nil nil t)))
+
+(defun crystal-tool-expand ()
+  "Expand macro at point."
+  (interactive)
+  (let* ((name buffer-file-name)
+         (lineno (number-to-string (line-number-at-pos)))
+         (colno (number-to-string (+ 1 (current-column))))
+         (bname "*Macro Expansion*")
+         (buffer (get-buffer-create bname)))
+    (with-current-buffer buffer
+      (erase-buffer)
+      (funcall 'crystal-mode)
+      (crystal-exec (list "tool" "expand" "-c"
+                          (concat name ":" lineno ":" colno) name)
+                    bname))
+    (display-buffer buffer)))
+
+(defun crystal-find-project-root ()
+  "Come up with a suitable directory where crystal can be run from.
+This will either be the directory that contains `shard.yml' or,
+if no such file is found in the directory hierarchy, the
+directory of the current file."
+  (or
+    (and
+      buffer-file-name
+      (locate-dominating-file buffer-file-name "shard.yml"))
+    default-directory))
 
 ;;;###autoload
 (define-derived-mode crystal-mode prog-mode "Crystal"
