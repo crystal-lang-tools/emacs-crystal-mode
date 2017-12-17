@@ -191,7 +191,7 @@ This should only be called after matching against `crystal-here-doc-beg-re'."
     ["Indent Sexp" prog-indent-sexp
      :visible crystal-use-smie]
     "--"
-    ["Format" crystal-format t]))
+    ["Format" crystal-tool-format t]
     ["Expand macro" crystal-tool-expand t]))
 
 (defvar crystal-mode-syntax-table
@@ -2404,7 +2404,7 @@ See `font-lock-syntax-table'.")
            (append (list crystal-executable nil output-buffer-name t)
                    args))))
 
-(defun crystal-format ()
+(defun crystal-tool-format ()
   "Format the contents of the current buffer without persisting the result."
   (interactive)
   (let ((oldbuf (current-buffer))
