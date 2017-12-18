@@ -2422,11 +2422,13 @@ See `font-lock-syntax-table'.")
          (bname "*Macro Expansion*")
          (buffer (get-buffer-create bname)))
     (with-current-buffer buffer
+      (read-only-mode -1)
       (erase-buffer)
       (funcall 'crystal-mode)
       (crystal-exec (list "tool" "expand" "-c"
                           (concat name ":" lineno ":" colno) name)
-                    bname))
+                    bname)
+      (read-only-mode))
     (display-buffer buffer)))
 
 (defun crystal-find-project-root ()
