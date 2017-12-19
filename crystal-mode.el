@@ -192,7 +192,9 @@ This should only be called after matching against `crystal-here-doc-beg-re'."
      :visible crystal-use-smie]
     "--"
     ["Format" crystal-tool-format t]
-    ["Expand macro" crystal-tool-expand t]))
+    ["Expand macro" crystal-tool-expand t]
+    ["Show context" crystal-tool-context t]
+    ["Show imp" crystal-tool-imp]))
 
 (defvar crystal-mode-syntax-table
   (let ((table (make-syntax-table)))
@@ -2416,18 +2418,37 @@ See `font-lock-syntax-table'.")
 (defun crystal-tool-expand ()
   "Expand macro at point."
   (interactive)
+  (crystal-tool--location "expand" t))
+
+(defun crystal-tool-imp ()
+  "Show implementations at point."
+  (interactive)
+  (or buffer-file-name
+      (error "Cannot use implementations on a buffer without a file name"))
+  (crystal-tool--location "implementations"))
+
+(defun crystal-tool-context()
+  "Show content at point."
+  (interactive)
+  (crystal-tool--location "context"))
+
+(defun crystal-tool--location(sub-cmd &optional crystal-mode-p)
   (let* ((oldbuf (current-buffer))
-         (name (make-temp-file "crystal-expand" nil ".cr"))
+         (name (or
+                (and (file-exists-p buffer-file-name) buffer-file-name)
+                   (make-temp-file (concat "crystal-" sub-cmd) nil ".cr")))
          (lineno (number-to-string (line-number-at-pos)))
          (colno (number-to-string (+ 1 (current-column))))
-         (bname "*Macro Expansion*")
+         (bname (concat "*Crystal-" (capitalize sub-cmd) "*"))
          (buffer (get-buffer-create bname)))
-    (write-region nil nil name)
+    (unless (file-exists-p buffer-file-name)
+      (write-region nil nil name))
     (with-current-buffer buffer
       (read-only-mode -1)
       (erase-buffer)
-      (funcall 'crystal-mode)
-      (crystal-exec (list "tool" "expand" "--no-color" "-c"
+      (when crystal-mode-p
+        (funcall 'crystal-mode))
+      (crystal-exec (list "tool" sub-cmd "--no-color" "-c"
                           (concat name ":" lineno ":" colno) name)
                     bname)
       (read-only-mode))
