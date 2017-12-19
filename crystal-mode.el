@@ -2416,16 +2416,18 @@ See `font-lock-syntax-table'.")
 (defun crystal-tool-expand ()
   "Expand macro at point."
   (interactive)
-  (let* ((name buffer-file-name)
+  (let* ((oldbuf (current-buffer))
+         (name (make-temp-file "crystal-expand" nil ".cr"))
          (lineno (number-to-string (line-number-at-pos)))
          (colno (number-to-string (+ 1 (current-column))))
          (bname "*Macro Expansion*")
          (buffer (get-buffer-create bname)))
+    (write-region nil nil name)
     (with-current-buffer buffer
       (read-only-mode -1)
       (erase-buffer)
       (funcall 'crystal-mode)
-      (crystal-exec (list "tool" "expand" "-c"
+      (crystal-exec (list "tool" "expand" "--no-color" "-c"
                           (concat name ":" lineno ":" colno) name)
                     bname)
       (read-only-mode))
