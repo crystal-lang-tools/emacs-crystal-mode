@@ -41,6 +41,8 @@
 
 ;;; Code:
 
+(require 'compile)
+
 (defgroup crystal nil
   "Major mode for editing Crystal code."
   :prefix "crystal-"
@@ -2451,6 +2453,8 @@ See `font-lock-syntax-table'.")
       (crystal-exec (list "tool" sub-cmd "--no-color" "-c"
                           (concat name ":" lineno ":" colno) name)
                     bname)
+      (when (string-equal sub-cmd "implementations")
+          (compilation-mode))
       (read-only-mode))
     (display-buffer buffer)))
 
