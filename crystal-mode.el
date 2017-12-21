@@ -2404,6 +2404,7 @@ See `font-lock-syntax-table'.")
 (defun crystal-exec (args output-buffer-name)
   "Run crystal with the supplied args and put the result in output-buffer-name"
   (let ((default-directory (crystal-find-project-root)))
+    (message "Crystal-exec: %s %s "crystal-executable args)
     (apply 'call-process
            (append (list crystal-executable nil output-buffer-name t)
                    args))))
@@ -2449,13 +2450,14 @@ See `font-lock-syntax-table'.")
       (read-only-mode -1)
       (erase-buffer)
       (when crystal-mode-p
-        (funcall 'crystal-mode))
+        (funcall 'crystal-mode)))
       (crystal-exec (list "tool" sub-cmd "--no-color" "-c"
                           (concat name ":" lineno ":" colno) name)
                     bname)
-      (when (string-equal sub-cmd "implementations")
+      (with-current-buffer buffer
+        (when (string-equal sub-cmd "implementations")
           (compilation-mode))
-      (read-only-mode))
+        (read-only-mode))
     (display-buffer buffer)))
 
 (defun crystal-find-project-root ()
@@ -2463,11 +2465,8 @@ See `font-lock-syntax-table'.")
 This will either be the directory that contains `shard.yml' or,
 if no such file is found in the directory hierarchy, the
 directory of the current file."
-  (or
-    (and
-      buffer-file-name
-      (locate-dominating-file buffer-file-name "shard.yml"))
-    default-directory))
+  (or (locate-dominating-file default-directory "shard.yml")
+      default-directory))
 
 ;;;###autoload
 (define-derived-mode crystal-mode prog-mode "Crystal"
