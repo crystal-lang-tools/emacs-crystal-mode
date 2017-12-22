@@ -164,6 +164,8 @@ This should only be called after matching against `crystal-here-doc-beg-re'."
     (define-key map (kbd "M-C-n") 'crystal-end-of-block)
     (define-key map (kbd "C-c {") 'crystal-toggle-block)
     (define-key map (kbd "C-c '") 'crystal-toggle-string-quotes)
+    (define-key map (kbd "C-c C-j") 'crystal-def-jump)
+    (define-key map (kbd "C-x 4 C-c C-j") 'crystal-def-jump-other-window)
     map)
   "Keymap used in Crystal mode.")
 
@@ -193,10 +195,11 @@ This should only be called after matching against `crystal-here-doc-beg-re'."
     ["Indent Sexp" prog-indent-sexp
      :visible crystal-use-smie]
     "--"
+    ["Jump to Definition" crystal-def-jump t]
     ["Format" crystal-tool-format t]
     ["Expand macro" crystal-tool-expand t]
     ["Show context" crystal-tool-context t]
-    ["Show imp" crystal-tool-imp]))
+    ["Show imp" crystal-tool-imp t]))
 
 (defvar crystal-mode-syntax-table
   (let ((table (make-syntax-table)))
@@ -2436,8 +2439,7 @@ See `font-lock-syntax-table'.")
   (crystal-tool--location "context"))
 
 (defun crystal-tool--location(sub-cmd &optional crystal-mode-p)
-  (let* ((oldbuf (current-buffer))
-         (name (or
+  (let* ((name (or
                 (and (file-exists-p buffer-file-name) buffer-file-name)
                    (make-temp-file (concat "crystal-" sub-cmd) nil ".cr")))
          (lineno (number-to-string (line-number-at-pos)))
@@ -2459,6 +2461,72 @@ See `font-lock-syntax-table'.")
           (compilation-mode))
         (read-only-mode))
     (display-buffer buffer)))
+
+(defun crystal-def--find-line-column (specifier other-window)
+  "Given a file name in the format of `filename:line:column',
+visit FILENAME and go to line LINE and column COLUMN."
+  (if (not (string-match "\\(.+\\):\\([0-9]+\\):\\([0-9]+\\)" specifier))
+      ;; We've only been given a directory name
+      (funcall (if other-window #'find-file-other-window #'find-file) specifier)
+    (let ((filename (match-string 1 specifier))
+          (line (string-to-number (match-string 2 specifier)))
+          (column (string-to-number (match-string 3 specifier))))
+      (funcall (if other-window #'find-file-other-window #'find-file) filename)
+      (crystal--goto-line line)
+      (beginning-of-line)
+      (forward-char (1- column))
+      (if (buffer-modified-p)
+          (message "Buffer is modified, file position might not have been correct")))))
+
+(defun crystal-def--call (point)
+  "Call crystal tool imp, acquiring definition position and expression
+description at POINT."
+  (if (not (buffer-file-name (current-buffer)))
+      (error "Cannot use crystal tool imp on a buffer without a file name")
+    (let ((fname (file-truename (buffer-file-name (current-buffer))))
+          (outbuf (generate-new-buffer "*Crystal-def*"))
+          (lineno (number-to-string (line-number-at-pos point)))
+          (colno (number-to-string (+ 1 (current-column)))))
+      (prog2
+          (crystal-exec (list
+                         "tool" "implementations"
+                         "--no-color"
+                         "-f" "json"
+                         "-c" (concat fname ":" lineno ":" colno) fname)
+                        outbuf)
+          (let* ((imp-res-str (with-current-buffer outbuf (buffer-string)))
+                 (imp-res-json (let ((json-key-type 'string))
+                                 (json-read-from-string imp-res-str))))
+            (message (format "imp-res: %s" imp-res-json))
+            (if (not (arrayp imp-res-json))
+                (if (string-equal (cdr (assoc "status" imp-res-json)) "ok")
+                    (let* ((imps (cdr (assoc "implementations" imp-res-json)))
+                           (imp (aref imps 0))
+                           (fname (cdr (assoc "filename" imp)))
+                           (line-num (number-to-string (cdr (assoc "line" imp))))
+                           (column-num (number-to-string (cdr (assoc "column" imp)))))
+                      (concat fname ":" line-num ":" column-num))
+                    (error (cdr (assoc "message" imp-res-json))))
+              (error "Failed to jump def")))
+        (kill-buffer outbuf)))))
+
+(defun crystal-def-jump (point &optional other-window)
+  "Jump to the definition of the expression at POINT."
+  (interactive "d")
+  (condition-case nil
+      (let ((specifier (crystal-def--call point)))
+        (push-mark)
+        (ring-insert find-tag-marker-ring (point-marker))
+        (crystal-def--find-line-column specifier other-window))
+    (file-error (message "Could not run crystal-def!"))))
+
+(defun crystal-def-jump-other-window (point)
+  (interactive "d")
+  (crystal-def-jump point t))
+
+(defun crystal--goto-line (line)
+  (goto-char (point-min))
+  (forward-line (1- line)))
 
 (defun crystal-find-project-root ()
   "Come up with a suitable directory where crystal can be run from.
