@@ -6,7 +6,7 @@
 ;; Created: Tue Jun 23 2015
 ;; Keywords: languages crystal
 ;; Version: 0.1
-;; Package-Requires: ((emacs "24.3"))
+;; Package-Requires: ((emacs "24.4"))
 
 
 ;; Based on on ruby-mode.el
@@ -42,6 +42,7 @@
 ;;; Code:
 
 (require 'compile)
+(require 'xref nil :noerror)  ; xref is new in Emacs 25.1
 
 (defgroup crystal nil
   "Major mode for editing Crystal code."
@@ -197,9 +198,14 @@ This should only be called after matching against `crystal-here-doc-beg-re'."
     "--"
     ["Jump to Definition" crystal-def-jump t]
     ["Format" crystal-tool-format t]
-    ["Expand macro" crystal-tool-expand t]
-    ["Show context" crystal-tool-context t]
-    ["Show imp" crystal-tool-imp t]))
+    ("Tool"
+     ["Expand macro" crystal-tool-expand t]
+     ["Show context" crystal-tool-context t]
+     ["Show imp" crystal-tool-imp t])
+    ("Spec"
+     ["Switch" crystal-spec-switch t]
+     ["Call buffer" crystal-spec-buffer t]
+     ["Call project" crystal-spec-all t])))
 
 (defvar crystal-mode-syntax-table
   (let ((table (make-syntax-table)))
@@ -657,7 +663,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
      ;; as the last token inside of the macro expr
      ;;((looking-at crystal-macro-cmd-re) "{%end%}")
      ;;((looking-at crystal-macro-end-cmd-re) (match-string 1))
-     ((looking-back "%}")
+     ((looking-back "%}" (line-beginning-position))
       ;; (message "looking back at a macro cmd")
       ;; scan backawards to {%
       (re-search-backward "{%")
@@ -1560,7 +1566,8 @@ by `end-of-defun'."
   (interactive "p")
   (crystal-forward-sexp)
   (let (case-fold-search)
-    (when (looking-back (concat "^\\s *" crystal-block-end-re))
+    (when (looking-back (concat "^\\s *" crystal-block-end-re)
+                        (line-beginning-position))
       (forward-line 1))))
 
 (defun crystal-beginning-of-indent ()
@@ -2407,7 +2414,7 @@ See `font-lock-syntax-table'.")
 (defun crystal-exec (args output-buffer-name)
   "Run crystal with the supplied args and put the result in output-buffer-name"
   (let ((default-directory (crystal-find-project-root)))
-    (message "Crystal-exec: %s %s "crystal-executable args)
+    ;;(message "Crystal-exec: %s %s "crystal-executable args)
     (apply 'call-process
            (append (list crystal-executable nil output-buffer-name t)
                    args))))
@@ -2516,9 +2523,12 @@ description at POINT."
   (condition-case nil
       (let ((specifier (crystal-def--call point)))
         (push-mark)
-        (ring-insert find-tag-marker-ring (point-marker))
+        (if (eval-when-compile (fboundp 'xref-push-marker-stack))
+            ;; TODO: Integrate this facility with XRef.
+            (xref-push-marker-stack)
+          (ring-insert find-tag-marker-ring (point-marker)))
         (crystal-def--find-line-column specifier other-window))
-    (file-error (message "Could not run crystal-def!"))))
+    (file-error (message "Could not run crystal-def."))))
 
 (defun crystal-def-jump-other-window (point)
   (interactive "d")
@@ -2527,6 +2537,84 @@ description at POINT."
 (defun crystal--goto-line (line)
   (goto-char (point-min))
   (forward-line (1- line)))
+
+(defun crystal-spec-switch ()
+  "Switch source file and its spec file."
+  (interactive)
+  (if (buffer-file-name)
+      (if (not (string-suffix-p "spec_helper.cr" (buffer-file-name)))
+          (crystal-spec--switch t)
+        (error "Cannot switch on spec_helper.cr."))
+    (error "Cannot use crystal-spec-switch on a buffer without a file name.")))
+
+(defun crystal-spec--switch (&optional tf-create-p)
+  (let* ((root-dir (file-truename (crystal-find-project-root)))
+         (fname (file-truename (buffer-file-name (current-buffer))))
+         (to-fname (crystal-spec--switch-to-fname root-dir fname)))
+    (message (format
+              "%s switch to %s"
+              (substring fname (length root-dir) nil)
+              (substring to-fname (length root-dir) nil)))
+    (if tf-create-p
+        (funcall #'find-file to-fname)
+      (if (file-exists-p to-fname)
+          (funcall #'find-file to-fname)
+        (error (format "%s not exist." to-fname))))))
+
+(defun crystal-spec--switch-to-fname (root-dir fname)
+  (let* ((fname-non-dir (file-name-nondirectory fname))
+         (fname-dir (file-name-directory fname))
+         (fname-relative-dir (substring fname-dir (length root-dir) nil)))
+    (if (string-suffix-p "_spec.cr" fname-non-dir)
+        (concat root-dir
+                "src"
+                (substring fname-relative-dir
+                           (length "spec") nil)
+                (replace-regexp-in-string "_spec.cr" ".cr" fname-non-dir))
+      (concat root-dir
+              "spec"
+              (substring fname-relative-dir
+                         (length "src") nil)
+              (replace-regexp-in-string ".cr" "_spec.cr" fname-non-dir)))))
+
+(defun crystal-spec-buffer()
+  "Run spec for current buffer."
+  (interactive)
+  (if (buffer-file-name)
+      (let ((fname (file-truename (buffer-file-name))))
+        (if (string-suffix-p "_spec.cr" fname)
+            (crystal-spec--call fname)
+          (if (not (string-suffix-p "spec_helper.cr" (buffer-file-name)))
+            (let* ((root-dir (file-truename (crystal-find-project-root)))
+                  (fname (file-truename (buffer-file-name (current-buffer))))
+                  (to-fname (crystal-spec--switch-to-fname root-dir fname)))
+              (if (file-exists-p to-fname)
+                  (crystal-spec--call to-fname)
+                (error (format "%s not exist." to-fname))))
+            (error "Cannot use crystal spec on spec_helper.cr."))))
+    (error "Cannot use crystal spec on a buffer without a file name.")))
+
+(defun crystal-spec-all()
+  "Run all specs for current project."
+  (interactive)
+   (crystal-spec--call nil))
+
+(defun crystal-spec--call (fname)
+  (let* ((bname "*Crystal-spec*")
+        (spec-buffer (get-buffer-create bname))
+        (spec-args (list "spec" "--no-color"))
+        (relative-dir-fname (when fname
+                              (substring fname
+                                         (length (file-truename (crystal-find-project-root))) nil))))
+    (when relative-dir-fname
+      (setq spec-args (append spec-args (list relative-dir-fname))))
+    (with-current-buffer spec-buffer
+      (read-only-mode -1)
+      (erase-buffer))
+    (crystal-exec spec-args bname)
+    (with-current-buffer spec-buffer
+      (read-only-mode))
+    (display-buffer spec-buffer)))
 
 (defun crystal-find-project-root ()
   "Come up with a suitable directory where crystal can be run from.
