@@ -47,11 +47,13 @@
 (defgroup crystal nil
   "Major mode for editing Crystal code."
   :prefix "crystal-"
-  :group 'languages)
+  :group 'languages
+  :link '(url-link :tag "Github" "https://github.com/crystal-lang-tools/emacs-crystal-mode")
+  :link '(emacs-commentary-link :tag "Commentary" "crystal-mode"))
 
 (defconst crystal-block-beg-keywords
   '("class" "module" "def" "if" "unless" "case" "while" "until" "for" "begin" "do"
-    "macro" "lib" "enum" "struct" "describe" "it")
+    "macro" "lib" "enum" "struct" "describe" "it" "union")
   "Keywords at the beginning of blocks.")
 
 (defconst crystal-block-beg-re
@@ -63,7 +65,7 @@
   "Regexp to match keywords that nest without blocks.")
 
 (defconst crystal-indent-beg-re
-  (concat "^\\(\\s *" (regexp-opt '("class" "module" "def" "macro" "lib" "enum" "struct"))
+  (concat "^\\(\\s *" (regexp-opt '("class" "module" "def" "macro" "lib" "enum" "struct" "union"))
           "\\|"
           (regexp-opt '("if" "unless" "case" "while" "until" "for" "begin"))
           "\\)\\_>")
@@ -100,7 +102,7 @@
 (defconst crystal-block-end-re "\\_<end\\_>")
 
 (defconst crystal-defun-beg-re
-  '"\\(def\\|class\\|module\\|macro\\|lib\\|struct\\|enum\\)"
+  '"\\(def\\|class\\|module\\|macro\\|lib\\|struct\\|enum\\|union\\)"
   "Regexp to match the beginning of a defun, in the general sense.")
 
 (defconst crystal-attr-re
@@ -385,106 +387,123 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
 
 (require 'smie)
 
-(defconst crystal-smie-grammar
-  (smie-prec2->grammar
-   (smie-merge-prec2s
-    (smie-bnf->prec2
-     '((id)
-       (insts (inst) (insts ";" insts))
-       (inst (exp) (inst "iuwu-mod" exp)
-             ;; Somewhat incorrect (both can be used multiple times),
-             ;; but avoids lots of conflicts:
-             (exp "and" exp) (exp "or" exp))
-       (exp  (exp1) (exp "," exp) (exp "=" exp)
-             (id " @ " exp))
-       (exp1 (exp2) (exp2 "?" exp1 ":" exp1))
-       (exp2 (exp3) (exp3 "." exp2))
-       (exp3 ("def" insts "end")
-             ("begin" insts-rescue-insts "end")
-             ("do" insts "end")
-             ("class" insts "end") ("module" insts "end") ("struct" insts "end")
-             ("lib" insts "end") ("enum" insts "end")
-             ("[" expseq "]")
-             ("{" hashvals "}")
-             ("{" insts "}")
-             ("{{" exp "}}")
-             ("{{" id "}}")
-             ("while" insts "end")
-             ("until" insts "end")
-             ("unless" insts "end")
-             ("if" if-body "end")
-             ("for" for-body "end")
-             ("->{" proc-body "}")
-             ("macro" insts "end")
-             ("{%" exp "%}")
-             ("{%for%}" insts "{%end%}")
-             ("{%if%}" if-macro-body "{%end%}")
-             ("{%unless%}" insts "{%end%}")
-             ("case"  cases "end")
-             ("lib" insts "end")
-             ("struct" insts "end")
-             ("enum" insts "end")
-             ("fun" insts "end")
-             ("type" insts "end"))
-       ;;(macro-cmd (inst) (forexp))
-       ;;(macro-cmds (macro-cmd) (macro-cmds ";" macro-cmds))
-       ;;(macro-start ("{%" macro-cmd "%}"))
-       ;;(macro-block (macro-start macroinsts "{%end%}"))
-       ;;(macro-code ("{%" macro-cmds "%}"))
-       ;; FIXME this is wrong
-       ;;(macro-inst (inst) (macro-block) (macro-code))
-       ;;(macro-insts (macro-inst) (macro-insts ";" macro-insts))
-       ;;(macro-body (macro-insts))
-       (macro-exp (for-head))
-       (formal-params ("opening-|" exp "closing-|"))
-       (for-body (for-head ";" insts))
-       (for-head (exp "in" exp))
-       (proc-body (insts))
-       (cases (exp "then" insts)
-              (cases "when" cases) (insts "else" insts))
-       (expseq (exp) );;(expseq "," expseq)
-       (hashvals (id "=>" exp1) (hashvals "," hashvals))
-       (insts-rescue-insts (insts)
-                           (insts-rescue-insts "rescue" insts-rescue-insts)
-                           (insts-rescue-insts "ensure" insts-rescue-insts))
-       (itheni (insts) (exp "then" insts))
-       (ielsei (itheni) (itheni "else" insts))
-       (if-body (ielsei) (if-body "elsif" if-body))
-       (itheni-macro (insts) (exp "{%then%}" insts))
-       (ielsei-macro (itheni-macro) (itheni-macro "{%else%}" insts))
-       (if-macro-body (ielsei-macro) (if-macro-body "{%elsif%}" if-macro-body))
-       )
+(defmacro crystal-smie-debug (message &rest format-args)
+  `(progn
+     (when crystal-smie-verbose-p
+       (message (format ,message ,@format-args)))
+     nil))
 
-     '((nonassoc "in") (assoc ";") (right " @ ")
-       (assoc ",") (right "="))
-     '((assoc "when"))
-     '((assoc "elsif"))
-     '((assoc "{%elsif%}"))
-     '((assoc "rescue" "ensure"))
-     '((assoc ",")))
+;; Declare variable that we need from the smie package
+(defvar smie--parent)
 
-    (smie-precs->prec2
-     '((right "=")
-       (right "+=" "-=" "*=" "/=" "%=" "**=" "&=" "|=" "^="
-              "<<=" ">>=" "&&=" "||=")
-       (left ".." "...")
-       (left "+" "-")
-       (left "*" "/" "%" "**")
-       (left "&&" "||")
-       (left "^" "&" "|")
-       (nonassoc "<=>")
-       (nonassoc ">" ">=" "<" "<=")
-       (nonassoc "==" "===" "!=")
-       (nonassoc "=~" "!~")
-       (left "<<" ">>")
-       (right "."))))))
+(defvar crystal-smie-verbose-p t
+  "Emit context information about the current syntax state.")
 
-(defun crystal-smie--eoms ()
-  (save-excursion
-    (forward-char -2)
-    (looking-at "%}")
-    )
-  )
+(defun verbose-crystal-smie-rules (kind token)
+  (let ((value (crystal-smie-rules kind token)))
+    (ignore-errors (crystal-smie-debug "[verbose-crystal-smie-rules] [kind: %s] [token: '%s']; sibling-p:%s parent:%s prev-is-OP:%s hanging:%s == %s" kind token
+                                       (ignore-errors (smie-rule-sibling-p))
+                                       (ignore-errors (if smie--parent
+                                                          smie--parent
+                                                        "nil"))
+                                       (ignore-errors (smie-rule-prev-p "OP"))
+                                       (ignore-errors (smie-rule-hanging-p))
+                                       value))
+    value))
+
+(defcustom crystal-smie-grammar
+    (smie-prec2->grammar
+     (smie-merge-prec2s
+      (smie-bnf->prec2
+       '((id)
+         (stmts (stmt)
+                (stmt ";" stmts))
+         (stmt ("def" stmts-rescue-stmts "end")
+               ("begin" stmts-rescue-stmts "end")
+               ("do" stmts-rescue-stmts "end")
+               ("module" stmts "end")
+               ("class" stmts "end")
+               ;; c-binding
+               ("lib" stmts"end")
+               ("struct" stmts "end")
+               ("fun" stmts "end")
+               ("enum" stmts "end")
+               ("union" stmts "end")
+               ("{" exp "}")
+               ("{" stmts "}")
+               ("{{" exp "}}")
+               ("{{" id "}}")
+               ;; control exp
+               ("if" if-body "end")
+               ("unless" stmts "end")
+               ("while" stmts "end")
+               ("until" ielsei "end")
+               ("case"  cases "end")
+               ("->{" stmts "}")
+               ;; macro
+               ("macro" stmts "end")
+               ("{%if%}" if-macro-body "{%end%}")
+               ("{%unless%}" stmts "{%end%}")
+               ("{%for%}" stmts "{%end%}")
+               ("{%begin%}" stmts "{%end%}")
+               ;; nested macro
+               ("\{%if%}" if-nest-macro-body "\{%end%}")
+               ("\{%unless%}" stmts "\{%end%}")
+               ("\{%for%}" stmts "\{%end%}")
+               ("\{%begin%}" stmts "\{%end%}")
+               ;; if unless while untile (suffix express)
+               (stmt "iuwu-mod" exp)
+               (id "@" exp)
+               (exp))
+         (exp (exp "OP" exp)
+              (exp "." exp)
+              (exp "," exp)
+              (id "=>" stmt)
+              ("[" exp "]"))
+         (stmts-rescue-stmts (stmts)
+                             (stmts-rescue-stmts "rescue" stmts-rescue-stmts)
+                             (stmts-rescue-stmts "ensure" stmts))
+         (if-body (ielsei) (if-body "elsif" if-body))
+         (ielsei (stmts) (stmts "else" stmts))
+         (cases (exp "then" stmts)
+                (cases "when" cases)
+                (stmts "else" stmts))
+         (ielsei-macro (stmts) (stmts "{%else%}" stmts))
+         (if-macro-body (ielsei-macro) (if-macro-body "{%elsif%}" if-macro-body))
+         (ielsei-nest-macro (stmts) (stmts "\{%else%}" stmts))
+         (if-nest-macro-body (ielsei-nest-macro) (if-nest-macro-body "\{%elsif%}" if-nest-macro-body)))
+
+       '((nonassoc "in") (assoc ";") (right "@")
+         (assoc ",") (right "="))
+      '((assoc "when"))
+      '((assoc "elsif"))
+      '((assoc "{%elsif%}"))
+      '((assoc "\{%elsif%}"))
+      '((assoc "rescue" "ensure"))
+      '((assoc ",")))
+
+      (smie-precs->prec2
+       '((right "=")
+         (right "+=" "-=" "*=" "/=" "%=" "**=" "&=" "|=" "^="
+                "<<=" ">>=" "&&=" "||=")
+         (left ".." "...")
+         (left "+" "-")
+         (left "*" "/" "%" "**")
+         (left "&&" "||")
+         (left "^" "&" "|")
+         (nonassoc "<=>")
+         (nonassoc ">" ">=" "<" "<=")
+         (nonassoc "==" "===" "!=")
+         (nonassoc "=~" "!~")
+         (left "<<" ">>")
+         (right ".")))))
+    "Grammar definition for Crystal.")
+
+(defvar crystal-smie--operator-regexp
+  (rx (or "<<=" ">>=" "&&=" "||=" "===" "<=>" "**="
+          "<<" ">>" "&&" "||" ">=" "<=" "=="  "!="
+          "+=" "-=" "*=" "/=" "%=" "&=" "|=" "^="
+          "=" "+" "-" "*" "/"  "%" "**" "^" "&" ">" "<" "|")))
 
 (defun crystal-smie--bosp ()
   (save-excursion (skip-chars-backward " \t")
@@ -512,7 +531,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
                           '("|" "||")))
              (and (eq (car (syntax-after (1- (point)))) 2)
                   (member (save-excursion (crystal-smie--backward-token))
-                          '("iuwu-mod" "and" "or")))
+                          '("iuwu-mod")))
              (save-excursion
                (forward-comment 1)
                (eq (char-after) ?.))))))
@@ -563,34 +582,24 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
        (eq (char-before) ?.)
        (not (eq (char-before (1- (point))) ?.))))
 
-(defun crystal-smie--end-of-macro ()
-  "Go to the end of the enclosing macro"
-  (re-search-forward "%}")
-  )
-
 (defun crystal-smie--forward-token ()
   (let ((pos (point)))
     (skip-chars-forward " \t")
-
     (cond
+     ((looking-at "\\\\{%")
+      (forward-char 3)
+      (skip-chars-forward " \t")
+      (let ((tok (smie-default-forward-token)))
+        (if (member tok '("end" "else" "elsif"))
+            (concat "\{%" tok "%}")
+          ";")))
      ((looking-at "{%")
-      ;; (message "at a macro stmt")
       (forward-char 2)
       (skip-chars-forward " \t")
       (let ((tok (smie-default-forward-token)))
         (if (member tok '("end" "else" "elsif"))
             (concat "{%" tok "%}")
-          ";"
-          )
-        )
-      ;; (let ((tok (concat "{%" (smie-default-forward-token) "%}")))
-      ;;   (message "at %s %s" (point) (char-after))
-      ;;   (re-search-forward "%}")
-      ;;   (message "NOW at %s %s" (point) (char-after))
-      ;;   (cond (member tok  tok)
-      ;;         (t ";"))
-      ;;   )
-      )
+          ";")))
      ((and (looking-at "\n") (looking-at "\\s\""))  ;A heredoc.
       ;; Tokenize the whole heredoc as semicolon.
       (goto-char (scan-sexps (point) 1))
@@ -599,25 +608,35 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
            (crystal-smie--implicit-semi-p)) ;Only add implicit ; when needed.
       (if (eolp) (forward-char 1) (forward-comment 1))
       ";")
+     ((looking-at crystal-smie--operator-regexp)
+      (if (or (looking-at "<=>") (not (looking-at "=>")))
+          (progn
+            (looking-at crystal-smie--operator-regexp)
+            (goto-char (match-end 0))
+            "OP")
+        (progn
+          (looking-at "=>")
+          (goto-char (match-end 0))
+          "=>"
+          )))
      (t
       (forward-comment (point-max))
       (cond
        ((and (< pos (point))
              (save-excursion
                (crystal-smie--args-separator-p (prog1 (point) (goto-char pos)))))
-        " @ ")
+        "@")
        ((looking-at ":\\s.+")
         (goto-char (match-end 0)) (match-string 0)) ;bug#15208.
        ((looking-at "\\s\"") "")                    ;A string.
        (t
         (let ((dot (crystal-smie--at-dot-call))
               (tok (smie-default-forward-token)))
-          ;;(message "default forward tok '%s'" tok)
           (when dot
             (setq tok (concat "." tok)))
           (cond
            ((member tok '("unless" "if" "while" "until"))
-            (if (save-excursion (forward-word -1) (crystal-smie--bosp))
+            (if (save-excursion (forward-word-strictly -1) (crystal-smie--bosp))
                 tok "iuwu-mod"))
            ((string-match-p "\\`|[*&]?\\'" tok)
             (forward-char (- 1 (length tok)))
@@ -649,59 +668,60 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
               (crystal-smie--forward-token)) ;Fully redundant.
              (t ";")))
            (t
-            ;;(message "forward '%s'" tok)
-            tok)
-           ))))))))
+            tok)))))))))
 
 (defun crystal-smie--backward-token ()
   (let ((pos (point)))
     (forward-comment (- (point)))
-
     (cond
-     ;; FIXME why do these never fire?
-     ;; treat macro expr similarly to heredocs? go backwards and tokenize
-     ;; as the last token inside of the macro expr
-     ;;((looking-at crystal-macro-cmd-re) "{%end%}")
-     ;;((looking-at crystal-macro-end-cmd-re) (match-string 1))
      ((looking-back "%}" (line-beginning-position))
-      ;; (message "looking back at a macro cmd")
-      ;; scan backawards to {%
-      (re-search-backward "{%")
-      ;; (message "at %s %s" (point) (char-after))
-      (save-excursion
-        (forward-char 2)
-        (skip-chars-forward " \t")
-        ;; fixme only if token is in if/else/for/end/while/unless
-        (let ((tok (smie-default-forward-token)))
-          (if (member tok '("if" "else" "end" "elsif" "unless" "for" "while"))
-              (concat "{%" tok "%}")
-            ";"))))
-     ((and (> pos (line-end-position)) (crystal-smie--implicit-semi-p))
+      (if (re-search-backward "\\\\{%" (line-beginning-position)  t)
+          (progn
+            (save-excursion
+              (forward-char 3)
+              (skip-chars-forward " \t")
+              (let ((tok (smie-default-forward-token)))
+                (if (member tok '("if" "else" "elsif" "end"
+                                  "unless" "for" "while" "begin"))
+                    (concat "\{%" tok "%}")
+                  ";"))))
+        (progn
+          (re-search-backward "{%")
+          (save-excursion
+            (forward-char 2)
+            (skip-chars-forward " \t")
+            (let ((tok (smie-default-forward-token)))
+              (if (member tok '("if" "else" "elsif" "end"
+                                "unless" "for" "while" "begin"))
+                  (concat "{%" tok "%}")
+                ";"))))))
+     ((and (> pos (line-end-position))
+           (crystal-smie--implicit-semi-p))
       (skip-chars-forward " \t") ";")
-     ((and (bolp) (not (bobp)))         ;Presumably a heredoc.
+     ((and (bolp) (not (bobp)))   ;; Presumably a heredoc.
       ;; Tokenize the whole heredoc as semicolon.
       (goto-char (scan-sexps (point) -1))
-      ;; (message "back to heredoc")
       ";")
      ((and (> pos (point)) (not (bolp))
            (crystal-smie--args-separator-p pos))
       ;; We have "ID SPC ID", which is a method call, but it binds less tightly
       ;; than commas, since a method call can also be "ID ARG1, ARG2, ARG3".
       ;; In some textbooks, "e1 @ e2" is used to mean "call e1 with arg e2".
-      " @ ")
+      "@")
+     ((and (looking-back crystal-smie--operator-regexp (- (point) 3) t)
+           (or (looking-back "<=>" (- (point) 3) t)
+               (not (looking-back "=>" (- (point) 3) t))))
+      (goto-char (match-beginning 0))
+      "OP")
      (t
       (let ((tok (smie-default-backward-token))
             (dot (crystal-smie--at-dot-call)))
-        ;;(message "default backward tok is '%s'" tok)
         (when dot
-          ;; (message "back dot")
           (setq tok (concat "." tok)))
         (when (and (eq ?: (char-before)) (string-match "\\`\\s." tok))
-          ;; (message "back :")
           (forward-char -1) (setq tok (concat ":" tok))) ;; bug#15208.
         (cond
          ((member tok '("unless" "if" "while" "until"))
-          ;; (message "back if while")
           (if (crystal-smie--bosp)
               tok "iuwu-mod"))
          ((equal tok "|")
@@ -711,14 +731,11 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
            ((crystal-smie--closing-pipe-p) "closing-|")
            (t tok)))
          ((string-match-p "\\`|[*&]\\'" tok)
-          ;; (message "back backtick")
           (forward-char 1)
           (substring tok 1))
          ((and (equal tok "") (eq ?\\ (char-before)) (looking-at "\n"))
-          ;; (message "back escaped")
           (forward-char -1) (crystal-smie--backward-token))
          ((equal tok "def")
-           ;; (message "back def")
           (cond
            ((not (crystal-smie--redundant-macro-def-p)) tok)
            ((> (save-excursion (forward-word 1)
@@ -727,7 +744,6 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
             (crystal-smie--backward-token)) ;Fully redundant.
            (t ";")))
          ((equal tok "do")
-          ;; (message "back do")
           (cond
            ((not (crystal-smie--redundant-do-p)) tok)
            ((> (save-excursion (forward-word 1)
@@ -736,7 +752,6 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
             (crystal-smie--backward-token)) ;Fully redundant.
            (t ";")))
          (t
-          ;;(message "backward '%s'" tok)
           tok)))))))
 
 (defun crystal-smie--indent-to-stmt ()
@@ -749,32 +764,38 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
       (memq (intern keyword) crystal-align-to-stmt-keywords)))
 
 (defun crystal-smie-rules (kind token)
-   (message "indent '%s' '%s'" kind token)
   (pcase (cons kind token)
+    (`(:list-intro . ";") -2)
+    (`(:list-intro . nil) -2)
     (`(:elem . basic) crystal-indent-level)
     ;; "foo" "bar" is the concatenation of the two strings, so the second
     ;; should be aligned with the first.
     (`(:elem . args) (if (looking-at "\\s\"") 0))
-    ;; (`(:after . ",") (smie-rule-separator kind))
-    (`(:after . ,(or `"{%else%}" `"{%elsif%}" ))
-      (smie-rule-parent crystal-indent-level)
-     )
+    ;;(`(:after . ",")
+    ;; (message "forward-token: %s, backward-token: %s"
+    ;;          (crystal-smie--forward-token)
+    ;;          (crystal-smie--backward-token))
+    ;; (if (and (smie-rule-parent-p "(")
+    ;;          (smie-rule-hanging-p))
+    ;;     (crystal-smie--indent-to-stmt)
+    ;;     (smie-rule-separator kind)))
+    (`(:after . ,(or `"{%else%}" `"{%elsif%}" `"\{%else%}" `"\{%elsif%}"))
+     (smie-rule-parent crystal-indent-level))
     (`(:before . ";")
-     ;; (message "Before ;")
      (cond
-      ((smie-rule-parent-p "def" "begin" "do" "class" "module" "{%for%}"
-                           "while" "until" "unless" "macro" "lib" "enum" "struct"
-                           "if" "then" "elsif" "else" "when" "{%if%}"
-                           "{%elsif%}" "{%else%}" "{%unless%}"
+      ((smie-rule-parent-p "def" "begin" "do" "class" "module"
+                           "macro" "lib" "enum" "struct" "union"
+                           "while" "until" "unless"
+                           "if" "then" "elsif" "else" "when"
+                           "{%if%}" "{%for%}" "{%elsif%}" "{%else%}" "{%unless%}" "{%begin%}"
+                           "\{%if%}" "\{%for%}" "\{%elsif%}" "\{%else%}" "\{%unless%}" "\{%begin%}"
                            "rescue" "ensure" "{")
-       (message "Still got this one %s" (smie-indent--parent))
        (smie-rule-parent crystal-indent-level))
-      ;; For (invalid) code between switch and case.
-      ;; (if (smie-parent-p "switch") 4)
+      ((smie-rule-prev-p "OP")
+       (smie-rule-parent crystal-indent-level))
       ))
 
     (`(:before . ,(or `"(" `"[" `"{"))
-     ;; (message "Before ( [ {")
      (cond
       ((and (equal token "{")
             (not (smie-rule-prev-p "(" "{" "[" "," "=>" "=" "return" ";"))
@@ -782,10 +803,8 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
               (forward-comment -1)
               (not (eq (preceding-char) ?:))))
        ;; Curly block opener.
-       ;; (message "curly block opener")
        (crystal-smie--indent-to-stmt))
       ((smie-rule-hanging-p)
-       ;; (message "hanging p")
        ;; Treat purely syntactic block-constructs as being part of their parent,
        ;; when the opening token is hanging and the parent is not an
        ;; open-paren.
@@ -812,7 +831,6 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
     (`(:after . ,(or `"(" "[" "{"))
      ;; FIXME: Shouldn't this be the default behavior of
      ;; `smie-indent-after-keyword'?
-     ;; (message "After ([{")
      (save-excursion
        (forward-char 1)
        (skip-chars-forward " \t")
@@ -820,8 +838,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
        ;; because we want to reject hanging tokens at bol, too.
        (unless (or (eolp) (forward-comment 1))
          (cons 'column (current-column)))))
-    (`(:before . " @ ")
-     ;; (message "Before @")
+    (`(:before . "@")
      (save-excursion
        (skip-chars-forward " \t")
        (cons 'column (current-column))))
@@ -830,16 +847,15 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
      (if (smie-rule-sibling-p)
          (and crystal-align-chained-calls 0)
        crystal-indent-level))
-    (`(:before . ,(or `"else" `"then" `"elsif" `"rescue" `"ensure" `"{%else%}" `"{%elsif%}"))
+    (`(:before . ,(or `"else" `"then" `"elsif" `"rescue" `"ensure"
+                      `"{%else%}" `"{%elsif%}"
+                      `"\{%else%}" `"\{%elsif%}"))
      (smie-rule-parent))
     (`(:before . "when")
      ;; Align to the previous `when', but look up the virtual
      ;; indentation of `case'.
      (if (smie-rule-sibling-p) 0 (smie-rule-parent)))
-    (`(:after . ,(or "=" "iuwu-mod" "+" "-" "*" "/" "&&" "||" "%" "**" "^" "&"
-                     "<=>" ">" "<" ">=" "<=" "==" "===" "!=" "<<" ">>"
-                     "+=" "-=" "*=" "/=" "%=" "**=" "&=" "|=" "^=" "|"
-                     "<<=" ">>=" "&&=" "||=" "and" "or"))
+    (`(:after . ,(or "OP" "iuwu-mod"))
      (and (smie-rule-parent-p ";" nil)
           (smie-indent--hanging-p)
           crystal-indent-level))
@@ -917,7 +933,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
   "Set up initial buffer-local variables for Crystal mode."
   (setq indent-tabs-mode crystal-indent-tabs-mode)
   (if crystal-use-smie
-      (smie-setup crystal-smie-grammar #'crystal-smie-rules
+      (smie-setup crystal-smie-grammar #'verbose-crystal-smie-rules
                   :forward-token  #'crystal-smie--forward-token
                   :backward-token #'crystal-smie--backward-token)
     (setq-local indent-line-function 'crystal-indent-line))
@@ -2205,7 +2221,7 @@ See `font-lock-syntax-table'.")
        crystal-font-lock-keyword-beg-re
        (regexp-opt
         '("alias"
-	  "and"
+          "and"
           "begin"
           "break"
           "case"
@@ -2217,7 +2233,6 @@ See `font-lock-syntax-table'.")
           "else"
           "fail"
           "ensure"
-          "enum"
           "for"
           "end"
           "if"
@@ -2241,10 +2256,12 @@ See `font-lock-syntax-table'.")
           "until"
           "when"
           "while"
+          "with"
           "yield"
           "lib"
           "struct"
           "enum"
+          "union"
           "fun"
           "type")
         'symbols))
