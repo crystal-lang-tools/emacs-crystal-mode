@@ -453,11 +453,11 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
                ("\{%begin%}" stmts "\{%end%}")
                ;; if unless while untile (suffix express)
                (stmt "iuwu-mod" exp)
-               (id "@" exp)
+               (id " @ " exp)
                (exp))
          (exp (exp "OP" exp)
-              (exp "." exp)
               (exp "," exp)
+              (exp "." exp)
               (id "=>" stmt)
               ("[" exp "]"))
          (stmts-rescue-stmts (stmts)
@@ -473,7 +473,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
          (ielsei-nest-macro (stmts) (stmts "\{%else%}" stmts))
          (if-nest-macro-body (ielsei-nest-macro) (if-nest-macro-body "\{%elsif%}" if-nest-macro-body)))
 
-       '((nonassoc "in") (assoc ";") (right "@")
+       '((nonassoc "in") (assoc ";") (right " @ ")
          (assoc ",") (right "="))
       '((assoc "when"))
       '((assoc "elsif"))
@@ -625,7 +625,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
        ((and (< pos (point))
              (save-excursion
                (crystal-smie--args-separator-p (prog1 (point) (goto-char pos)))))
-        "@")
+        " @ ")
        ((looking-at ":\\s.+")
         (goto-char (match-end 0)) (match-string 0)) ;bug#15208.
        ((looking-at "\\s\"") "")                    ;A string.
@@ -636,7 +636,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
             (setq tok (concat "." tok)))
           (cond
            ((member tok '("unless" "if" "while" "until"))
-            (if (save-excursion (forward-word-strictly -1) (crystal-smie--bosp))
+            (if (save-excursion (forward-word -1) (crystal-smie--bosp))
                 tok "iuwu-mod"))
            ((string-match-p "\\`|[*&]?\\'" tok)
             (forward-char (- 1 (length tok)))
@@ -654,12 +654,12 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
                  (line-end-position))
               (crystal-smie--forward-token)) ;Fully redundant.
              (t ";")))
-           ((equal tok "class")
-            (cond
-             ((> (save-excursion (forward-comment (point-max)) (point))
-                 (line-end-position))
-              (crystal-smie--forward-token)) ;Fully redundant.
-             (t ";")))
+           ;;((equal tok "class")
+           ;; (cond
+           ;;  ((> (save-excursion (forward-comment (point-max)) (point))
+           ;;      (line-end-position))
+           ;;   (crystal-smie--forward-token)) ;Fully redundant.
+           ;;  (t ";")))
            ((equal tok "do")
             (cond
              ((not (crystal-smie--redundant-do-p 'skip)) tok)
@@ -707,7 +707,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
       ;; We have "ID SPC ID", which is a method call, but it binds less tightly
       ;; than commas, since a method call can also be "ID ARG1, ARG2, ARG3".
       ;; In some textbooks, "e1 @ e2" is used to mean "call e1 with arg e2".
-      "@")
+      " @ ")
      ((and (looking-back crystal-smie--operator-regexp (- (point) 3) t)
            (or (looking-back "<=>" (- (point) 3) t)
                (not (looking-back "=>" (- (point) 3) t))))
@@ -725,7 +725,6 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
           (if (crystal-smie--bosp)
               tok "iuwu-mod"))
          ((equal tok "|")
-          ;; (message "back pipe")
           (cond
            ((crystal-smie--opening-pipe-p) "opening-|")
            ((crystal-smie--closing-pipe-p) "closing-|")
@@ -876,15 +875,18 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
 
 (defun crystal-imenu-create-index-in-block (prefix beg end)
   "Create an imenu index of methods inside a block."
+  ;;(message "[crystal-imenu-create-index-in-block] prefix: %s, beg: %s, end: %s" prefix beg end)
   (let ((index-alist '()) (case-fold-search nil)
         name next pos decl sing)
     (goto-char beg)
-    (while (re-search-forward "^\\s *\\(\\(class\\s +\\|\\(class\\s *<<\\s *\\)\\|module\\s +\\)\\([^\(<\n ]+\\)\\|\\(def\\|alias\\)\\s +\\([^\(\n ]+\\)\\)" end t)
-      (setq sing (match-beginning 3))
-      (setq decl (match-string 5))
+    (while (re-search-forward "^\\s *\\(private\\|protected\\)*\\s *\\(\\(class\\s +\\|\\(class\\s *<<\\s *\\)\\|struct\\s +\\|\\(struct\\s *<<\\s *\\)\\|module\\s +\\)\\([^\(<\n ]+\\)\\|\\(def\\|alias\\)\\s +\\([^\(\n ]+\\)\\)" end t)
+      (setq sing (match-beginning 4))
+      (setq decl (match-string 7))
       (setq next (match-end 0))
-      (setq name (or (match-string 4) (match-string 6)))
+      (setq name (or (match-string 6) (match-string 8)))
       (setq pos (match-beginning 0))
+      ;;(message "[crystal-imenu-create-index-in-block]sing: %s, decl: %s, name: %s, pos: %s, next: %s"
+      ;;         sing decl name pos next)
       (cond
        ((string= "alias" decl)
         (if prefix (setq name (concat prefix name)))
@@ -916,6 +918,20 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
 (defun crystal-imenu-create-index ()
   "Create an imenu index of all methods in the buffer."
   (nreverse (crystal-imenu-create-index-in-block nil (point-min) nil)))
+
+(defun crystal-smie--regexp-test ()
+  "Use for test imenu-create"
+  (interactive)
+  (goto-char (point-min))
+  (while (re-search-forward "^\\s *\\(private\\|protected\\)*\\s *\\(\\(class\\s +\\|\\(class\\s *<<\\s *\\)\\|struct\\s +\\|\\(struct\\s *<<\\s *\\)\\|module\\s +\\)\\([^\(<\n ]+\\)\\|\\(def\\|alias\\)\\s +\\([^\(\n ]+\\)\\)" nil t)
+    (message "match-string[1]: %s" (match-string 1))
+    (message "match-string[2]: %s" (match-string 2))
+    (message "match-string[3]: %s" (match-string 3))
+    (message "match-string[4]: %s" (match-string 4))
+    (message "match-string[5]: %s" (match-string 5))
+    (message "match-string[6]: %s" (match-string 6))
+    (message "match-string[7]: %s" (match-string 7))
+    (message "match-string[8]: %s" (match-string 8))))
 
 (defun crystal-accurate-end-of-block (&optional end)
   "Jump to the end of the current block or END, whichever is closer."
