@@ -8,7 +8,6 @@
 ;; Version: 0.1.0
 ;; Package-Requires: ((emacs "24.4"))
 
-
 ;; Based on on ruby-mode.el
 
 ;; This file is not part of GNU Emacs.
@@ -418,6 +417,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
        '((id)
          (stmts (stmt)
                 (stmt ";" stmts))
+
          (stmt ("def" stmts-rescue-stmts "end")
                ("begin" stmts-rescue-stmts "end")
                ("do" stmts-rescue-stmts "end")
@@ -455,11 +455,13 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
                (stmt "iuwu-mod" exp)
                (id " @ " exp)
                (exp))
-         (exp (exp "OP" exp)
-              (exp "," exp)
+
+         (exp (exp "," exp)
               (exp "." exp)
+              (exp "OP" exp)
               (id "=>" stmt)
               ("[" exp "]"))
+
          (stmts-rescue-stmts (stmts)
                              (stmts-rescue-stmts "rescue" stmts-rescue-stmts)
                              (stmts-rescue-stmts "ensure" stmts))
