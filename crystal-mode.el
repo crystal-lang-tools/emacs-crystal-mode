@@ -1,11 +1,13 @@
 ;;; crystal-mode.el --- Major mode for editing Crystal files
 
-;; Copyright (C) 2015 Jason Pellerin
+;; Copyright (C) 2015-2016 Jason Pellerin
+;;               2016-2018 crystal-lang-tools
 ;; Authors: Jason Pellerin
+;;          crystal-lang-tools
 ;; URL: https://github.com/crystal-lang-tools/emacs-crystal-mode
 ;; Created: Tue Jun 23 2015
 ;; Keywords: languages crystal
-;; Version: 0.1.0
+;; Version: 0.2.0
 ;; Package-Requires: ((emacs "24.4"))
 
 ;; Based on on ruby-mode.el
@@ -262,7 +264,7 @@ This should only be called after matching against `crystal-here-doc-beg-re'."
   :group 'crystal
   :safe 'integerp)
 
-(defconst crystal-alignable-keywords '(if while unless until begin case for def macro class)
+(defconst crystal-alignable-keywords '(if while unless until begin case for def macro class struct)
   "Keywords that can be used in `crystal-align-to-stmt-keywords'.")
 
 (defcustom crystal-align-to-stmt-keywords '(def)
@@ -395,10 +397,10 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
 ;; Declare variable that we need from the smie package
 (defvar smie--parent)
 
-(defvar crystal-smie-verbose-p t
+(defvar crystal-smie-verbose-p nil
   "Emit context information about the current syntax state.")
 
-(defun verbose-crystal-smie-rules (kind token)
+(defun crystal-smie-rules-verbose (kind token)
   (let ((value (crystal-smie-rules kind token)))
     (ignore-errors (crystal-smie-debug "[verbose-crystal-smie-rules] [kind: %s] [token: '%s']; sibling-p:%s parent:%s prev-is-OP:%s hanging:%s == %s" kind token
                                        (ignore-errors (smie-rule-sibling-p))
@@ -656,12 +658,6 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
                  (line-end-position))
               (crystal-smie--forward-token)) ;Fully redundant.
              (t ";")))
-           ;;((equal tok "class")
-           ;; (cond
-           ;;  ((> (save-excursion (forward-comment (point-max)) (point))
-           ;;      (line-end-position))
-           ;;   (crystal-smie--forward-token)) ;Fully redundant.
-           ;;  (t ";")))
            ((equal tok "do")
             (cond
              ((not (crystal-smie--redundant-do-p 'skip)) tok)
@@ -764,6 +760,28 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
   (or (eq t crystal-align-to-stmt-keywords)
       (memq (intern keyword) crystal-align-to-stmt-keywords)))
 
+(defun crystal-smie--current-line-with-visibility-p ()
+  (save-excursion
+    (beginning-of-line)
+    (looking-at "^[ \t]*\\(private\\|protected\\)?[ \t]*\\(macro\\|class\\|struct\\)")))
+
+(defun crystal-smie--current-line-indentation ()
+  "Return the indentation of the current line."
+  (save-excursion
+    (current-indentation)))
+
+(defun crystal-smie--previous-line-with-visibility-p ()
+  (save-excursion
+    (forward-line -1)
+    (beginning-of-line)
+    (looking-at "^[ \t]*\\(private\\|protected\\)?[ \t]*\\(macro\\|class\\|struct\\)")))
+
+(defun crystal-smie--previous-line-indentation ()
+  "Return the indentation of the previous line."
+  (save-excursion
+    (forward-line -1)
+    (current-indentation)))
+
 (defun crystal-smie-rules (kind token)
   (pcase (cons kind token)
     (`(:list-intro . ";") -2)
@@ -784,17 +802,28 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
      (smie-rule-parent crystal-indent-level))
     (`(:before . ";")
      (cond
-      ((smie-rule-parent-p "def" "begin" "do" "class" "module"
-                           "macro" "lib" "enum" "struct" "union"
-                           "while" "until" "unless"
-                           "if" "then" "elsif" "else" "when"
+      ((smie-rule-parent-p "def" "begin" "do" "module" "lib" "enum" "union"
+                           "while" "until" "unless" "if" "then" "elsif" "else" "when"
                            "{%if%}" "{%for%}" "{%elsif%}" "{%else%}" "{%unless%}" "{%begin%}"
                            "\{%if%}" "\{%for%}" "\{%elsif%}" "\{%else%}" "\{%unless%}" "\{%begin%}"
                            "rescue" "ensure" "{")
        (smie-rule-parent crystal-indent-level))
+      ((smie-rule-parent-p "macro" "class" "struct")
+       (if (crystal-smie--current-line-with-visibility-p)
+           (cons 'column
+                 (+ (crystal-smie--current-line-indentation)
+                    crystal-indent-level))
+         (crystal-smie--indent-to-stmt)))
       ((smie-rule-prev-p "OP")
-       (smie-rule-parent crystal-indent-level))
-      ))
+       (smie-rule-parent crystal-indent-level))))
+
+    (`(:before . "end")
+     (cond
+      ((smie-rule-parent-p "macro" "class" "struct")
+       (if (crystal-smie--previous-line-with-visibility-p)
+           (cons 'column (crystal-smie--previous-line-indentation))
+         (cons 'column (- (crystal-smie--previous-line-indentation)
+                          crystal-indent-level))))))
 
     (`(:before . ,(or `"(" `"[" `"{"))
      (cond
@@ -881,7 +910,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
   (let ((index-alist '()) (case-fold-search nil)
         name next pos decl sing)
     (goto-char beg)
-    (while (re-search-forward "^\\s *\\(private\\|protected\\)*\\s *\\(\\(class\\s +\\|\\(class\\s *<<\\s *\\)\\|struct\\s +\\|\\(struct\\s *<<\\s *\\)\\|module\\s +\\)\\([^\(<\n ]+\\)\\|\\(def\\|alias\\)\\s +\\([^\(\n ]+\\)\\)" end t)
+    (while (re-search-forward "^\\s *\\(private\\|protected\\)?\\s *\\(\\(class\\s +\\|\\(class\\s *<<\\s *\\)\\|struct\\s +\\|\\(struct\\s *<<\\s *\\)\\|module\\s +\\)\\([^\(<\n ]+\\)\\|\\(def\\|alias\\)\\s +\\([^\(\n ]+\\)\\)" end t)
       (setq sing (match-beginning 4))
       (setq decl (match-string 7))
       (setq next (match-end 0))
@@ -925,7 +954,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
   "Use for test imenu-create"
   (interactive)
   (goto-char (point-min))
-  (while (re-search-forward "^\\s *\\(private\\|protected\\)*\\s *\\(\\(class\\s +\\|\\(class\\s *<<\\s *\\)\\|struct\\s +\\|\\(struct\\s *<<\\s *\\)\\|module\\s +\\)\\([^\(<\n ]+\\)\\|\\(def\\|alias\\)\\s +\\([^\(\n ]+\\)\\)" nil t)
+  (while (re-search-forward "^\\s *\\(private\\|protected\\)?\\s *\\(\\(class\\s +\\|\\(class\\s *<<\\s *\\)\\|struct\\s +\\|\\(struct\\s *<<\\s *\\)\\|module\\s +\\)\\([^\(<\n ]+\\)\\|\\(def\\|alias\\)\\s +\\([^\(\n ]+\\)\\)" nil t)
     (message "match-string[1]: %s" (match-string 1))
     (message "match-string[2]: %s" (match-string 2))
     (message "match-string[3]: %s" (match-string 3))
@@ -943,6 +972,10 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
         (save-restriction
           (back-to-indentation)
           (narrow-to-region (point) end)
+          (when (and
+                 (looking-at "[ \t]*\\(private\\|protected\\)?[ \t]*\\(macro\\|class\\|struct\\)")
+                 (match-beginning 2))
+            (goto-char (match-beginning 2)))
           (smie-forward-sexp))
       (while (and (setq state (apply 'crystal-parse-partial end state))
                     (>= (nth 2 state) 0) (< (point) end))))))
@@ -951,7 +984,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
   "Set up initial buffer-local variables for Crystal mode."
   (setq indent-tabs-mode crystal-indent-tabs-mode)
   (if crystal-use-smie
-      (smie-setup crystal-smie-grammar #'verbose-crystal-smie-rules
+      (smie-setup crystal-smie-grammar #'crystal-smie-rules-verbose
                   :forward-token  #'crystal-smie--forward-token
                   :backward-token #'crystal-smie--backward-token)
     (setq-local indent-line-function 'crystal-indent-line))
@@ -2015,7 +2048,7 @@ If the result is do-end block, it will always be multiline."
 
 (eval-and-compile
   (defconst crystal-percent-literal-beg-re
-    "\\(%\\)[qQrswWxIi]?\\([!\"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|~]\\)"
+    "\\(%\\)[qQrswWxIi]?\\([([{<|]\\)"
     "Regexp to match the beginning of percent literal.")
 
   (defconst crystal-syntax-methods-before-regexp
@@ -2245,6 +2278,7 @@ See `font-lock-syntax-table'.")
           "case"
           "class"
           "def"
+          "describe"
           "defined?"
           "do"
           "elsif"
@@ -2255,6 +2289,7 @@ See `font-lock-syntax-table'.")
           "end"
           "if"
           "in"
+          "it"
           "lib"
           "macro"
           "module"
