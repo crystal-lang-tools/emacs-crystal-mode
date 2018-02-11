@@ -2506,6 +2506,16 @@ See `font-lock-syntax-table'.")
     (insert-file-contents name nil nil nil t)))
 
 ;;;###autoload
+(defun crystal-format-before-save ()
+  "Add this to .emacs to run crystal-tool-format on the current buffer when saving:
+\(add-hook 'before-save-hook 'crystal-format-before-save).
+
+Note that this will cause ‘crystal-mode’ to get loaded the first time
+you save any file, kind of defeating the point of autoloading."
+  (interactive)
+  (when (eq major-mode 'crystal-mode) (crystal-tool-format)))
+
+;;;###autoload
 (defun crystal-tool-expand ()
   "Expand macro at point."
   (interactive)
