@@ -417,8 +417,19 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
      (smie-merge-prec2s
       (smie-bnf->prec2
        '((id)
-         (stmts (stmt)
-                (stmt ";" stmts))
+         (stmts (g-stmt)
+                (g-stmt ";" stmts))
+
+         (g-stmt (b-stmt)
+                 ;; if unless while untile (suffix express)
+                 (g-stmt "iuwu-mod" b-stmt))
+
+         (b-stmt (dot-stmt)
+                 (b-stmt "," b-stmt)
+                 (b-stmt "=" b-stmt)
+                 (id " @ " b-stmt))
+
+         (dot-stmt (stmt) (stmt "." dot-stmt))
 
          (stmt ("def" stmts-rescue-stmts "end")
                ("begin" stmts-rescue-stmts "end")
@@ -431,9 +442,11 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
                ("fun" stmts "end")
                ("enum" stmts "end")
                ("union" stmts "end")
-               ("{" exp "}")
+               ;; array, hash...
+               ("[" expseq "]")
+               ("{" hashvals "}")
                ("{" stmts "}")
-               ("{{" exp "}}")
+               ("{{" b-stmt "}}")
                ("{{" id "}}")
                ;; control exp
                ("if" if-body "end")
@@ -452,28 +465,27 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
                ("\{%if%}" if-nest-macro-body "\{%end%}")
                ("\{%unless%}" stmts "\{%end%}")
                ("\{%for%}" stmts "\{%end%}")
-               ("\{%begin%}" stmts "\{%end%}")
-               ;; if unless while untile (suffix express)
-               (stmt "iuwu-mod" exp)
-               (id " @ " exp)
-               (exp))
+               ("\{%begin%}" stmts "\{%end%}"))
 
-         (exp (exp "," exp)
-              (exp "." exp)
-              (exp "OP" exp)
-              (id "=>" stmt)
-              ("[" exp "]"))
+         (formal-params ("opening-|" b-stmt "closing-|"))
 
          (stmts-rescue-stmts (stmts)
                              (stmts-rescue-stmts "rescue" stmts-rescue-stmts)
                              (stmts-rescue-stmts "ensure" stmts))
-         (if-body (ielsei) (if-body "elsif" if-body))
+
+         (expseq (b-stmt)) ;;(expseq "," expseq)
+         (hashvals (dot-stmt "=>" dot-stmt) (hashvals "," hashvals))
+
          (ielsei (stmts) (stmts "else" stmts))
-         (cases (exp "then" stmts)
+         (if-body (ielsei) (if-body "elsif" if-body))
+
+         (cases (b-stmt "then" stmts)
                 (cases "when" cases)
                 (stmts "else" stmts))
+
          (ielsei-macro (stmts) (stmts "{%else%}" stmts))
          (if-macro-body (ielsei-macro) (if-macro-body "{%elsif%}" if-macro-body))
+
          (ielsei-nest-macro (stmts) (stmts "\{%else%}" stmts))
          (if-nest-macro-body (ielsei-nest-macro) (if-nest-macro-body "\{%elsif%}" if-nest-macro-body)))
 
@@ -612,17 +624,6 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
            (crystal-smie--implicit-semi-p)) ;Only add implicit ; when needed.
       (if (eolp) (forward-char 1) (forward-comment 1))
       ";")
-     ((looking-at crystal-smie--operator-regexp)
-      (if (or (looking-at "<=>") (not (looking-at "=>")))
-          (progn
-            (looking-at crystal-smie--operator-regexp)
-            (goto-char (match-end 0))
-            "OP")
-        (progn
-          (looking-at "=>")
-          (goto-char (match-end 0))
-          "=>"
-          )))
      (t
       (forward-comment (point-max))
       (cond
@@ -706,11 +707,6 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
       ;; than commas, since a method call can also be "ID ARG1, ARG2, ARG3".
       ;; In some textbooks, "e1 @ e2" is used to mean "call e1 with arg e2".
       " @ ")
-     ((and (looking-back crystal-smie--operator-regexp (- (point) 3) t)
-           (or (looking-back "<=>" (- (point) 3) t)
-               (not (looking-back "=>" (- (point) 3) t))))
-      (goto-char (match-beginning 0))
-      "OP")
      (t
       (let ((tok (smie-default-backward-token))
             (dot (crystal-smie--at-dot-call)))
@@ -885,17 +881,27 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
      ;; Align to the previous `when', but look up the virtual
      ;; indentation of `case'.
      (if (smie-rule-sibling-p) 0 (smie-rule-parent)))
-    (`(:after . ,(or "OP" "iuwu-mod"))
+
+    (`(:after . ,(or "<<=" ">>=" "&&=" "||=" "===" "<=>" "**="
+                     "<<" ">>" "&&" "||" ">=" "<=" "=="  "!="
+                     "+=" "-=" "*=" "/=" "%=" "&=" "|=" "^="
+                     "=" "+" "-" "*" "/"  "%" "**" "^" "&" ">" "<" "|"))
      (and (smie-rule-parent-p ";" nil)
           (smie-indent--hanging-p)
           crystal-indent-level))
+
+    ;;(`(:after . ,(or "OP" "iuwu-mod"))
+    ;; (and (smie-rule-parent-p ";" nil)
+    ;;      (smie-indent--hanging-p)
+    ;;      crystal-indent-level))
     (`(:after . ,(or "?" ":")) crystal-indent-level)
     (`(:before . ,(guard (memq (intern-soft token) crystal-alignable-keywords)))
      (when (not (crystal--at-indentation-p))
        (if (crystal-smie--indent-to-stmt-p token)
            (crystal-smie--indent-to-stmt)
          (cons 'column (current-column)))))
-    ))
+    (`(:before . "iuwu-mod")
+     (smie-rule-parent crystal-indent-level))))
 
 (defun crystal--at-indentation-p (&optional point)
   (save-excursion
