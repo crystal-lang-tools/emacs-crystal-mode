@@ -122,7 +122,6 @@
   (defconst crystal-expression-expansion-re
     "\\(?:[^\\]\\|\\=\\)\\(\\\\\\\\\\)*\\(#\\({[^}\n\\\\]*\\(\\\\.[^}\n\\\\]*\\)*}\\|\\(\\$\\|@\\|@@\\)\\(\\w\\|_\\)+\\|\\$[^a-zA-Z \n]\\)\\)"))
 
-
 (defun crystal-here-doc-end-match ()
   "Return a regexp to find the end of a heredoc.
 
@@ -397,19 +396,25 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
 ;; Declare variable that we need from the smie package
 (defvar smie--parent)
 
+(defun crystal-smie-toggle-debug ()
+  "Toggle debug mode off and on for indentation."
+  (interactive)
+  (setq crystal-smie-verbose-p (not crystal-smie-verbose-p)))
+
 (defvar crystal-smie-verbose-p nil
   "Emit context information about the current syntax state.")
 
 (defun crystal-smie-rules-verbose (kind token)
   (let ((value (crystal-smie-rules kind token)))
-    (ignore-errors (crystal-smie-debug "[verbose-crystal-smie-rules] [kind: %s] [token: '%s']; sibling-p:%s parent:%s prev-is-OP:%s hanging:%s == %s" kind token
-                                       (ignore-errors (smie-rule-sibling-p))
-                                       (ignore-errors (if smie--parent
-                                                          smie--parent
-                                                        "nil"))
-                                       (ignore-errors (smie-rule-prev-p "OP"))
-                                       (ignore-errors (smie-rule-hanging-p))
-                                       value))
+    (ignore-errors (crystal-smie-debug
+                    "[verbose-crystal-smie-rules] [kind: %s] [token: '%s']; sibling-p:%s parent:%s hanging:%s == %s"
+                    kind token
+                    (ignore-errors (smie-rule-sibling-p))
+                    (ignore-errors (if smie--parent
+                                       smie--parent
+                                     "nil"))
+                    (ignore-errors (smie-rule-hanging-p))
+                    value))
     value))
 
 (defcustom crystal-smie-grammar
@@ -514,12 +519,6 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
          (left "<<" ">>")
          (right ".")))))
     "Grammar definition for Crystal.")
-
-(defvar crystal-smie--operator-regexp
-  (rx (or "<<=" ">>=" "&&=" "||=" "===" "<=>" "**="
-          "<<" ">>" "&&" "||" ">=" "<=" "=="  "!="
-          "+=" "-=" "*=" "/=" "%=" "&=" "|=" "^="
-          "=" "+" "-" "*" "/"  "%" "**" "^" "&" ">" "<" "|")))
 
 (defun crystal-smie--bosp ()
   (save-excursion (skip-chars-backward " \t")
@@ -674,26 +673,20 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
     (forward-comment (- (point)))
     (cond
      ((looking-back "%}" (line-beginning-position))
-      (if (re-search-backward "\\\\{%" (line-beginning-position)  t)
-          (progn
-            (save-excursion
-              (forward-char 3)
-              (skip-chars-forward " \t")
-              (let ((tok (smie-default-forward-token)))
-                (if (member tok '("if" "else" "elsif" "end"
-                                  "unless" "for" "while" "begin"))
-                    (concat "\{%" tok "%}")
-                  ";"))))
-        (progn
-          (re-search-backward "{%")
-          (save-excursion
-            (forward-char 2)
-            (skip-chars-forward " \t")
-            (let ((tok (smie-default-forward-token)))
-              (if (member tok '("if" "else" "elsif" "end"
-                                "unless" "for" "while" "begin"))
-                  (concat "{%" tok "%}")
-                ";"))))))
+      (re-search-backward "{%")
+      (let ((macro-prefix (if (eq ?\\ (char-before))
+                              "\{%"
+                            "{%"))
+            (macro-suffix "%}"))
+        (save-excursion
+          (forward-char 2)
+          (skip-chars-forward " \t")
+          (let ((tok (smie-default-forward-token)))
+            (if (member tok '("if" "else" "elsif" "end"
+                              "unless" "for" "while" "begin"))
+                (concat macro-prefix tok macro-suffix)
+              ";")))))
+
      ((and (> pos (line-end-position))
            (crystal-smie--implicit-semi-p))
       (skip-chars-forward " \t") ";")
@@ -778,6 +771,11 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
     (forward-line -1)
     (current-indentation)))
 
+(defun crystal-smie--parent-indentation (parent-pos)
+  (save-excursion
+    (goto-char parent-pos)
+    (current-indentation)))
+
 (defun crystal-smie-rules (kind token)
   (pcase (cons kind token)
     (`(:list-intro . ";") -2)
@@ -798,28 +796,26 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
      (smie-rule-parent crystal-indent-level))
     (`(:before . ";")
      (cond
+      ((and smie--parent (smie-rule-parent-p "macro" "class" "struct"))
+       (cons 'column
+             (+ (crystal-smie--parent-indentation (nth 1 smie--parent))
+                crystal-indent-level)))
+
       ((smie-rule-parent-p "def" "begin" "do" "module" "lib" "enum" "union"
                            "while" "until" "unless" "if" "then" "elsif" "else" "when"
+                           "macro" "class" "struct"
                            "{%if%}" "{%for%}" "{%elsif%}" "{%else%}" "{%unless%}" "{%begin%}"
                            "\{%if%}" "\{%for%}" "\{%elsif%}" "\{%else%}" "\{%unless%}" "\{%begin%}"
                            "rescue" "ensure" "{")
        (smie-rule-parent crystal-indent-level))
-      ((smie-rule-parent-p "macro" "class" "struct")
-       (if (crystal-smie--current-line-with-visibility-p)
-           (cons 'column
-                 (+ (crystal-smie--current-line-indentation)
-                    crystal-indent-level))
-         (crystal-smie--indent-to-stmt)))
-      ((smie-rule-prev-p "OP")
-       (smie-rule-parent crystal-indent-level))))
+      ))
 
     (`(:before . "end")
      (cond
-      ((smie-rule-parent-p "macro" "class" "struct")
-       (if (crystal-smie--previous-line-with-visibility-p)
-           (cons 'column (crystal-smie--previous-line-indentation))
-         (cons 'column (- (crystal-smie--previous-line-indentation)
-                          crystal-indent-level))))))
+      ((and smie--parent (smie-rule-parent-p "macro" "class" "struct"))
+       (cons 'column
+             (crystal-smie--parent-indentation (nth 1 smie--parent))))
+      ))
 
     (`(:before . ,(or `"(" `"[" `"{"))
      (cond
@@ -2504,16 +2500,6 @@ See `font-lock-syntax-table'.")
     (with-temp-file name (insert-buffer-substring oldbuf))
     (crystal-exec (list "tool" "format" name) "*messages*")
     (insert-file-contents name nil nil nil t)))
-
-;;;###autoload
-(defun crystal-format-before-save ()
-  "Add this to .emacs to run crystal-tool-format on the current buffer when saving:
-\(add-hook 'before-save-hook 'crystal-format-before-save).
-
-Note that this will cause ‘crystal-mode’ to get loaded the first time
-you save any file, kind of defeating the point of autoloading."
-  (interactive)
-  (when (eq major-mode 'crystal-mode) (crystal-tool-format)))
 
 ;;;###autoload
 (defun crystal-tool-expand ()
