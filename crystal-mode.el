@@ -406,15 +406,16 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
 
 (defun crystal-smie-rules-verbose (kind token)
   (let ((value (crystal-smie-rules kind token)))
-    (ignore-errors (crystal-smie-debug
-                    "[verbose-crystal-smie-rules] [kind: %s] [token: '%s']; sibling-p:%s parent:%s hanging:%s == %s"
-                    kind token
-                    (ignore-errors (smie-rule-sibling-p))
-                    (ignore-errors (if smie--parent
-                                       smie--parent
-                                     "nil"))
-                    (ignore-errors (smie-rule-hanging-p))
-                    value))
+    (when crystal-smie-verbose-p
+      (message
+       "[verbose-crystal-smie-rules] [kind: %s] [token: %s] sibling-p:%s parent:%s hanging:%s == %s"
+       kind token
+       (ignore-errors (smie-rule-sibling-p))
+       (ignore-errors (if smie--parent
+                          smie--parent
+                        "nil"))
+       (ignore-errors (smie-rule-hanging-p))
+       value))
     value))
 
 (defcustom crystal-smie-grammar
@@ -447,12 +448,6 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
                ("fun" stmts "end")
                ("enum" stmts "end")
                ("union" stmts "end")
-               ;; array, hash...
-               ("[" expseq "]")
-               ("{" hashvals "}")
-               ("{" stmts "}")
-               ("{{" b-stmt "}}")
-               ("{{" id "}}")
                ;; control exp
                ("if" if-body "end")
                ("unless" stmts "end")
@@ -470,7 +465,13 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
                ("\{%if%}" if-nest-macro-body "\{%end%}")
                ("\{%unless%}" stmts "\{%end%}")
                ("\{%for%}" stmts "\{%end%}")
-               ("\{%begin%}" stmts "\{%end%}"))
+               ("\{%begin%}" stmts "\{%end%}")
+               ;; array, hash...
+               ("[" expseq "]")
+               ("{{" b-stmt "}}")
+               ("{{" id "}}")
+               ("{" hashvals "}")
+               ("{" stmts "}"))
 
          (formal-params ("opening-|" b-stmt "closing-|"))
 
@@ -527,29 +528,37 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
 (defun crystal-smie--implicit-semi-p ()
   (save-excursion
     (skip-chars-backward " \t")
-    (not (or (bolp)
-             (memq (char-before) '(?\[ ?\())
-             (and (memq (char-before)
-                        '(?\; ?- ?+ ?* ?/ ?: ?. ?, ?\\ ?& ?> ?< ?% ?~ ?^))
-                  ;; Not a binary operator symbol.
-                  (not (eq (char-before (1- (point))) ?:))
-                  ;; Not the end of a regexp or a percent literal.
-                  (not (memq (car (syntax-after (1- (point)))) '(7 15))))
-             (and (eq (char-before) ?\?)
-                  (equal (save-excursion (crystal-smie--backward-token)) "?"))
-             (and (eq (char-before) ?=)
-                  ;; Not a symbol :==, :!=, or a foo= method.
-                  (string-match "\\`\\s." (save-excursion
-                                            (crystal-smie--backward-token))))
-             (and (eq (char-before) ?|)
-                  (member (save-excursion (crystal-smie--backward-token))
-                          '("|" "||")))
-             (and (eq (car (syntax-after (1- (point)))) 2)
-                  (member (save-excursion (crystal-smie--backward-token))
-                          '("iuwu-mod")))
-             (save-excursion
-               (forward-comment 1)
-               (eq (char-after) ?.))))))
+    (let ((backward-tok (save-excursion (crystal-smie--backward-token)))
+          (semi-p
+           (not (or (bolp)
+                    (memq (char-before) '(?\[ ?\())
+                    (and (memq (char-before)
+                               '(?\; ?- ?+ ?* ?/ ?: ?. ?, ?\\ ?& ?> ?< ?% ?~ ?^))
+                         ;; Not a binary operator symbol.
+                         (not (eq (char-before (1- (point))) ?:))
+                         ;; Not the end of a regexp or a percent literal.
+                         (not (memq (car (syntax-after (1- (point)))) '(7 15))))
+                    (and (eq (char-before) ?\?)
+                         (equal (save-excursion (crystal-smie--backward-token)) "?"))
+                    (and (eq (char-before) ?=)
+                         ;; Not a symbol :==, :!=, or a foo= method.
+                         (string-match "\\`\\s." (save-excursion
+                                                   (crystal-smie--backward-token))))
+                    (and (eq (char-before) ?|)
+                         (member (save-excursion (crystal-smie--backward-token))
+                                 '("|" "||")))
+                    (and (eq (car (syntax-after (1- (point)))) 2)
+                         (member (save-excursion (crystal-smie--backward-token))
+                                 '("iuwu-mod")))
+                    (save-excursion
+                      (forward-comment 1)
+                      (eq (char-after) ?.))))))
+      (when (member backward-tok
+                    '("{%if%}" "{%for%}" "{%elsif%}" "{%else%}" "{%unless%}" "{%begin%}"
+                      "\{%if%}" "\{%for%}" "\{%elsif%}" "\{%else%}" "\{%unless%}" "\{%begin%}"
+                      "{%end%}"))
+        (setq semi-p t))
+      semi-p)))
 
 (defun crystal-smie--redundant-do-p (&optional skip)
   (save-excursion
@@ -673,11 +682,11 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
     (forward-comment (- (point)))
     (cond
      ((looking-back "%}" (line-beginning-position))
-      (re-search-backward "{%")
-      (let ((macro-prefix (if (eq ?\\ (char-before))
-                              "\{%"
-                            "{%"))
+      (let ((macro-prefix "{%")
             (macro-suffix "%}"))
+        (re-search-backward "{%")
+        (when (eq ?\\ (char-before))
+          (setq macro-prefix "\{%"))
         (save-excursion
           (forward-char 2)
           (skip-chars-forward " \t")
@@ -869,10 +878,11 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
      (if (smie-rule-sibling-p)
          (and crystal-align-chained-calls 0)
        crystal-indent-level))
+
     (`(:before . ,(or `"else" `"then" `"elsif" `"rescue" `"ensure"
-                      `"{%else%}" `"{%elsif%}"
-                      `"\{%else%}" `"\{%elsif%}"))
+                      `"{%else%}" `"{%elsif%}" `"\{%else%}" `"\{%elsif%}"))
      (smie-rule-parent))
+
     (`(:before . "when")
      ;; Align to the previous `when', but look up the virtual
      ;; indentation of `case'.
@@ -886,10 +896,6 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
           (smie-indent--hanging-p)
           crystal-indent-level))
 
-    ;;(`(:after . ,(or "OP" "iuwu-mod"))
-    ;; (and (smie-rule-parent-p ";" nil)
-    ;;      (smie-indent--hanging-p)
-    ;;      crystal-indent-level))
     (`(:after . ,(or "?" ":")) crystal-indent-level)
     (`(:before . ,(guard (memq (intern-soft token) crystal-alignable-keywords)))
      (when (not (crystal--at-indentation-p))
