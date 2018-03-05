@@ -435,6 +435,8 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
                  (b-stmt "=" b-stmt)
                  (id " @ " b-stmt))
 
+         ;;(t-stmt (dot-stmt) (dot-stmt "?" t-stmt ":" t-stmt))
+
          (dot-stmt (stmt) (stmt "." dot-stmt))
 
          (stmt ("def" stmts-rescue-stmts "end")
@@ -617,6 +619,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
         (if (member tok '("end" "else" "elsif"))
             (concat "\{%" tok "%}")
           ";")))
+
      ((looking-at "{%")
       (forward-char 2)
       (skip-chars-forward " \t")
@@ -624,14 +627,17 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
         (if (member tok '("end" "else" "elsif"))
             (concat "{%" tok "%}")
           ";")))
+
      ((and (looking-at "\n") (looking-at "\\s\""))  ;A heredoc.
       ;; Tokenize the whole heredoc as semicolon.
       (goto-char (scan-sexps (point) 1))
       ";")
+
      ((and (looking-at "[\n#]")
            (crystal-smie--implicit-semi-p)) ;Only add implicit ; when needed.
       (if (eolp) (forward-char 1) (forward-comment 1))
       ";")
+
      (t
       (forward-comment (point-max))
       (cond
@@ -647,6 +653,8 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
               (tok (smie-default-forward-token)))
           (when dot
             (setq tok (concat "." tok)))
+          (when (and (equal tok "?") (eq (preceding-char) ?\])) ;bug#12
+            (setq tok ""))
           (cond
            ((member tok '("unless" "if" "while" "until"))
             (if (save-excursion (forward-word -1) (crystal-smie--bosp))
@@ -699,6 +707,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
      ((and (> pos (line-end-position))
            (crystal-smie--implicit-semi-p))
       (skip-chars-forward " \t") ";")
+
      ((and (bolp) (not (bobp)))   ;; Presumably a heredoc.
       ;; Tokenize the whole heredoc as semicolon.
       (goto-char (scan-sexps (point) -1))
@@ -714,6 +723,8 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
             (dot (crystal-smie--at-dot-call)))
         (when dot
           (setq tok (concat "." tok)))
+        (when (and (equal tok "?") (eq (preceding-char) ?\])) ;; bug#12
+          (setq tok ""))
         (when (and (eq ?: (char-before)) (string-match "\\`\\s." tok))
           (forward-char -1) (setq tok (concat ":" tok))) ;; bug#15208.
         (cond
