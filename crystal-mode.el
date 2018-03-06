@@ -653,7 +653,8 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
               (tok (smie-default-forward-token)))
           (when dot
             (setq tok (concat "." tok)))
-          (when (and (equal tok "?") (eq (preceding-char) ?\])) ;bug#12
+          (when (and (equal tok "?")
+                     (not (memq (preceding-char) '(?\s ?\t ?\n)))) ;bug#12
             (setq tok ""))
           (cond
            ((member tok '("unless" "if" "while" "until"))
@@ -723,7 +724,8 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
             (dot (crystal-smie--at-dot-call)))
         (when dot
           (setq tok (concat "." tok)))
-        (when (and (equal tok "?") (eq (preceding-char) ?\])) ;; bug#12
+        (when (and (equal tok "?")
+                   (not (memq (preceding-char) '(?\s ?\t ?\n)))) ;; bug#12
           (setq tok ""))
         (when (and (eq ?: (char-before)) (string-match "\\`\\s." tok))
           (forward-char -1) (setq tok (concat ":" tok))) ;; bug#15208.
