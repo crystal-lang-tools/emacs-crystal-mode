@@ -2541,6 +2541,16 @@ See `font-lock-syntax-table'.")
   (interactive)
   (crystal-tool--location "context"))
 
+(defun crystal-tool--project-name ()
+  "Try to figure out the name of the project."
+  (let* ((default-directory (crystal-find-project-root))
+         (dirname (directory-file-name (file-relative-name default-directory "..")))
+         (project-name (concat (file-name-as-directory "src") (concat dirname ".cr")))
+         (full-project (concat default-directory project-name) ))
+    (if (file-exists-p full-project)
+        project-name
+      "")))
+
 (defun crystal-tool--location(sub-cmd &optional crystal-mode-p)
   (let* ((name (or
                 (and (file-exists-p buffer-file-name) buffer-file-name)
@@ -2557,7 +2567,7 @@ See `font-lock-syntax-table'.")
       (when crystal-mode-p
         (funcall 'crystal-mode)))
       (crystal-exec (list "tool" sub-cmd "--no-color" "-c"
-                          (concat name ":" lineno ":" colno) name)
+                          (concat name ":" lineno ":" colno) name (crystal-tool--project-name))
                     bname)
       (with-current-buffer buffer
         (when (string-equal sub-cmd "implementations")
@@ -2595,7 +2605,7 @@ description at POINT."
                          "tool" "implementations"
                          "--no-color"
                          "-f" "json"
-                         "-c" (concat fname ":" lineno ":" colno) fname)
+                         "-c" (concat fname ":" lineno ":" colno) fname (crystal-tool--project-name))
                         outbuf)
           (let* ((imp-res-str (with-current-buffer outbuf (buffer-string)))
                  (imp-res-json (let ((json-key-type 'string))
