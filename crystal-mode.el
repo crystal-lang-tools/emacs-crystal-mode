@@ -1141,7 +1141,7 @@ Special characters are `?', `$', `:' when preceded by whitespace,
 and `\\' when preceded by `?'."
   (setq pos (or pos (point)))
   (let ((c (char-before pos)) (b (and (< (point-min) pos)
-				      (char-before (1- pos)))))
+                                      (char-before (1- pos)))))
     (cond ((or (eq c ??) (eq c ?$)))
           ((and (eq c ?:) (or (not b) (eq (char-syntax b) ? ))))
           ((eq c ?\\) (eq b ??)))))
@@ -1434,7 +1434,7 @@ delimiter."
        ((looking-at "^__END__$")
         (goto-char pnt))
        ((and (looking-at crystal-here-doc-beg-re)
-	     (boundp 'crystal-indent-point))
+             (boundp 'crystal-indent-point))
         (if (re-search-forward (crystal-here-doc-end-match)
                                crystal-indent-point t)
             (forward-line 1)
@@ -1501,7 +1501,7 @@ delimiter."
                             (or (goto-char (cdr (nth 1 s))) t)))
                      (forward-word -1)
                      (setq indent (crystal-indent-size (current-column)
-						    (nth 2 state))))
+                                                    (nth 2 state))))
                     (t
                      (setq indent (current-column))
                      (cond ((eq deep 'space))
@@ -1753,7 +1753,7 @@ With ARG, do it many times.  Negative ARG means move backward."
       (condition-case nil
           (while (> i 0)
             (skip-syntax-forward " ")
-	    (if (looking-at ",\\s *") (goto-char (match-end 0)))
+            (if (looking-at ",\\s *") (goto-char (match-end 0)))
             (cond ((looking-at "\\?\\(\\\\[CM]-\\)*\\\\?\\S ")
                    (goto-char (match-end 0)))
                   ((progn
@@ -1812,8 +1812,8 @@ With ARG, do it many times.  Negative ARG means move forward."
                   ((looking-at "\\s\"\\|\\\\\\S_")
                    (let ((c (char-to-string (char-before (match-end 0)))))
                      (while (and (search-backward c)
-				 (eq (logand (skip-chars-backward "\\") 1)
-				     1))))
+                                 (eq (logand (skip-chars-backward "\\") 1)
+                                     1))))
                    nil)
                   ((looking-at "\\s.\\|\\s\\")
                    (if (crystal-special-char-p) (forward-char -1)))
