@@ -35,6 +35,18 @@
 ;;; Code:
 
 (require 'flycheck)
+(require 'json)
+
+(defgroup flycheck-crystal nil
+  "Crystal mode's flycheck checker."
+  :group 'crystal)
+
+(defcustom flycheck-crystal-show-instantiating nil
+  "Whether \"instantiated by\" messages should be shown.
+These messages typically show the (static) backtrace of an error and are of
+little interest."
+  :type 'boolean
+  :group 'flycheck-crystal)
 
 (defun flycheck-crystal--find-default-directory (_checker)
   "Come up with a suitable default directory to run CHECKER in.
@@ -53,15 +65,26 @@ default-directory))
             "build"
             "--no-codegen"
             "--no-color"
+            "-f" "json"
             source-inplace)
   :working-directory flycheck-crystal--find-default-directory
-  :error-patterns
-  ((error line-start "Error in " (file-name) ":" line ":" (message) line-end)
-   (error line-start "Syntax error in " (file-name) ":" line ":" (message) line-end)
-   (warning line-start "Warning in " (file-name) ":" line ":" (message) line-end)
-   )
+  :error-parser flycheck-crystal--error-parser
   :modes crystal-mode
   )
+
+(defun flycheck-crystal--error-parser (output checker buffer)
+  (mapcan
+   (lambda (err)
+     (unless (or flycheck-crystal-show-instantiating
+                 (string-prefix-p "instantiating" (cdr-safe (assoc 'message err))))
+       (list (flycheck-error-new-at (cdr-safe (assoc 'line err))
+                                    (cdr-safe (assoc 'column err))
+                                    'error
+                                    (cdr-safe (assoc 'message err))
+                                    :checker checker
+                                    :buffer buffer
+                                    :filename (cdr-safe (assoc 'file err))))))
+   (json-read-from-string output)))
 
 (add-to-list 'flycheck-checkers 'crystal-build)
 
