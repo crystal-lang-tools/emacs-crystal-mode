@@ -75,8 +75,8 @@ default-directory))
 (defun flycheck-crystal--error-parser (output checker buffer)
   (mapcan
    (lambda (err)
-     (unless (or flycheck-crystal-show-instantiating
-                 (string-prefix-p "instantiating" (cdr-safe (assoc 'message err))))
+     (when (or flycheck-crystal-show-instantiating
+               (not (string-prefix-p "instantiating" (cdr-safe (assoc 'message err)))))
        (list (flycheck-error-new-at (cdr-safe (assoc 'line err))
                                     (cdr-safe (assoc 'column err))
                                     'error
