@@ -73,18 +73,19 @@ default-directory))
   )
 
 (defun flycheck-crystal--error-parser (output checker buffer)
-  (mapcan
-   (lambda (err)
-     (when (or flycheck-crystal-show-instantiating
-               (not (string-prefix-p "instantiating" (cdr-safe (assoc 'message err)))))
-       (list (flycheck-error-new-at (cdr-safe (assoc 'line err))
-                                    (cdr-safe (assoc 'column err))
-                                    'error
-                                    (cdr-safe (assoc 'message err))
-                                    :checker checker
-                                    :buffer buffer
-                                    :filename (cdr-safe (assoc 'file err))))))
-   (json-read-from-string output)))
+  (unless (zerop (length output))
+    (mapcan
+     (lambda (err)
+       (when (or flycheck-crystal-show-instantiating
+                 (not (string-prefix-p "instantiating" (cdr-safe (assoc 'message err)))))
+         (list (flycheck-error-new-at (cdr-safe (assoc 'line err))
+                                      (cdr-safe (assoc 'column err))
+                                      'error
+                                      (cdr-safe (assoc 'message err))
+                                      :checker checker
+                                      :buffer buffer
+                                      :filename (cdr-safe (assoc 'file err))))))
+     (json-read-from-string output))))
 
 (add-to-list 'flycheck-checkers 'crystal-build)
 
