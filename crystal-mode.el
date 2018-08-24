@@ -2756,7 +2756,13 @@ directory of the current file."
   (setq-local font-lock-keywords crystal-font-lock-keywords)
   (setq-local font-lock-syntax-table crystal-font-lock-syntax-table)
 
-  (setq-local syntax-propertize-function #'crystal-syntax-propertize-function))
+  (setq-local syntax-propertize-function #'crystal-syntax-propertize-function)
+
+  (when (and (boundp 'compilation-error-regexp-alist)
+           (boundp 'compilation-error-regexp-alist-alist))
+  (add-to-list 'compilation-error-regexp-alist 'crystal-spec)
+  (add-to-list 'compilation-error-regexp-alist-alist
+               '(crystal-spec . ("^in \\([^()\t\n]+\\):\\([0-9]+\\):? .*$" 1 2)) t)))
 
 ;;; Invoke crystal-mode when appropriate
 
