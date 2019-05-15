@@ -2762,7 +2762,7 @@ directory of the current file."
            (boundp 'compilation-error-regexp-alist-alist))
   (add-to-list 'compilation-error-regexp-alist 'crystal-spec)
   (add-to-list 'compilation-error-regexp-alist-alist
-               '(crystal-spec . ("^in \\([^()\t\n]+\\):\\([0-9]+\\):? .*$" 1 2)) t)))
+               '(crystal-spec . ("^(Error )?in \\([^()\t\n]+\\):\\([0-9]+\\):? .*$" 2 3)) t)))
 
 ;;; Invoke crystal-mode when appropriate
 
