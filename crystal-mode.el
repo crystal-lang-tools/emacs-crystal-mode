@@ -54,7 +54,7 @@
 
 (defconst crystal-block-beg-keywords
   '("class" "module" "def" "if" "unless" "case" "while" "until" "for" "begin" "do"
-    "macro" "lib" "enum" "struct" "describe" "it" "union")
+    "macro" "lib" "enum" "struct" "describe" "it" "union" "annotation")
   "Keywords at the beginning of blocks.")
 
 (defconst crystal-block-beg-re
@@ -66,7 +66,7 @@
   "Regexp to match keywords that nest without blocks.")
 
 (defconst crystal-indent-beg-re
-  (concat "^\\(\\s *" (regexp-opt '("class" "module" "def" "macro" "lib" "enum" "struct" "union"))
+  (concat "^\\(\\s *" (regexp-opt '("class" "module" "def" "macro" "lib" "enum" "struct" "union" "annotation"))
           "\\|"
           (regexp-opt '("if" "unless" "case" "while" "until" "for" "begin"))
           "\\)\\_>")
@@ -103,7 +103,7 @@
 (defconst crystal-block-end-re "\\_<end\\_>")
 
 (defconst crystal-defun-beg-re
-  '"\\(def\\|class\\|module\\|macro\\|lib\\|struct\\|enum\\|union\\)"
+  '"\\(def\\|class\\|module\\|macro\\|lib\\|struct\\|enum\\|union\\|annotation\\)"
   "Regexp to match the beginning of a defun, in the general sense.")
 
 (defconst crystal-attr-re
@@ -445,6 +445,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
                ("do" stmts-rescue-stmts "end")
                ("module" stmts "end")
                ("class" stmts "end")
+               ("annotation" stmts "end")
                ;; c-binding
                ("lib" stmts"end")
                ("struct" stmts "end")
@@ -775,7 +776,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
 (defun crystal-smie--current-line-with-visibility-p ()
   (save-excursion
     (beginning-of-line)
-    (looking-at "^[ \t]*\\(private\\|protected\\)?[ \t]*\\(macro\\|class\\|struct\\)")))
+    (looking-at "^[ \t]*\\(private\\|protected\\)?[ \t]*\\(macro\\|class\\|struct\\|annotation\\)")))
 
 (defun crystal-smie--current-line-indentation ()
   "Return the indentation of the current line."
@@ -786,7 +787,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
   (save-excursion
     (forward-line -1)
     (beginning-of-line)
-    (looking-at "^[ \t]*\\(private\\|protected\\)?[ \t]*\\(macro\\|class\\|struct\\)")))
+    (looking-at "^[ \t]*\\(private\\|protected\\)?[ \t]*\\(macro\\|class\\|struct\\|annotation\\)")))
 
 (defun crystal-smie--previous-line-indentation ()
   "Return the indentation of the previous line."
@@ -826,7 +827,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
 
       ((smie-rule-parent-p "def" "begin" "do" "module" "lib" "enum" "union"
                            "while" "until" "unless" "if" "then" "elsif" "else" "when"
-                           "macro" "class" "struct"
+                           "macro" "class" "struct" "annotation"
                            "{%if%}" "{%for%}" "{%elsif%}" "{%else%}" "{%unless%}" "{%begin%}"
                            "\{%if%}" "\{%for%}" "\{%elsif%}" "\{%else%}" "\{%unless%}" "\{%begin%}"
                            "rescue" "ensure" "{")
@@ -932,7 +933,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
   (let ((index-alist '()) (case-fold-search nil)
         name next pos decl sing)
     (goto-char beg)
-    (while (re-search-forward "^\\s *\\(private\\|protected\\)?\\s *\\(\\(class\\s +\\|\\(class\\s *<<\\s *\\)\\|struct\\s +\\|\\(struct\\s *<<\\s *\\)\\|module\\s +\\)\\([^\(<\n ]+\\)\\|\\(def\\|alias\\)\\s +\\([^\(\n ]+\\)\\)" end t)
+    (while (re-search-forward "^\\s *\\(private\\|protected\\)?\\s *\\(\\(class\\s +\\|\\(class\\s *<<\\s *\\)\\|struct\\s +\\|\\(struct\\s *<<\\s *\\)\\|module\\s +\\|annotation\\s +\\)\\([^\(<\n ]+\\)\\|\\(def\\|alias\\)\\s +\\([^\(\n ]+\\)\\)" end t)
       (setq sing (match-beginning 4))
       (setq decl (match-string 7))
       (setq next (match-end 0))
@@ -976,7 +977,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
   "Use for test imenu-create"
   (interactive)
   (goto-char (point-min))
-  (while (re-search-forward "^\\s *\\(private\\|protected\\)?\\s *\\(\\(class\\s +\\|\\(class\\s *<<\\s *\\)\\|struct\\s +\\|\\(struct\\s *<<\\s *\\)\\|module\\s +\\)\\([^\(<\n ]+\\)\\|\\(def\\|alias\\)\\s +\\([^\(\n ]+\\)\\)" nil t)
+  (while (re-search-forward "^\\s *\\(private\\|protected\\)?\\s *\\(\\(class\\s +\\|\\(class\\s *<<\\s *\\)\\|struct\\s +\\|\\(struct\\s *<<\\s *\\)\\|module\\s +\\|annotation\\s +\\)\\([^\(<\n ]+\\)\\|\\(def\\|alias\\)\\s +\\([^\(\n ]+\\)\\)" nil t)
     (message "match-string[1]: %s" (match-string 1))
     (message "match-string[2]: %s" (match-string 2))
     (message "match-string[3]: %s" (match-string 3))
@@ -2315,6 +2316,7 @@ See `font-lock-syntax-table'.")
           "lib"
           "macro"
           "module"
+          "annotation"
           "next"
           "not"
           "of"
