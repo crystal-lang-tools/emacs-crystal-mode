@@ -57,7 +57,7 @@ of the current file."
    (and
     buffer-file-name
     (locate-dominating-file buffer-file-name "shard.yml"))
-default-directory))
+   default-directory))
 
 (flycheck-define-checker crystal-build
   "A Crystal syntax checker using crystal build"
@@ -66,10 +66,12 @@ default-directory))
             "--no-codegen"
             "--no-color"
             "-f" "json"
-            source-inplace)
+            "--stdin-filename"
+            (eval (buffer-file-name)))
   :working-directory flycheck-crystal--find-default-directory
   :error-parser flycheck-crystal--error-parser
   :modes crystal-mode
+  :standard-input t
   )
 
 (defun flycheck-crystal--error-parser (output checker buffer)
