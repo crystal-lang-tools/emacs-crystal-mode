@@ -440,6 +440,11 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
 
          (dot-stmt (stmt) (stmt "." dot-stmt))
 
+         (type (id)
+               (type "::" id))
+
+         (type-spec (":" type))
+
          (stmt ("def" stmts-rescue-stmts "end")
                ("begin" stmts-rescue-stmts "end")
                ("do" stmts-rescue-stmts "end")
@@ -449,7 +454,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
                ;; c-binding
                ("lib" stmts"end")
                ("struct" stmts "end")
-               ("fun" stmts "end")
+               ("fun" id "(" stmts ")" type-spec)
                ("enum" stmts "end")
                ("union" stmts "end")
                ;; control exp
