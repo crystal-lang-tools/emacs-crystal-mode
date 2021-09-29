@@ -92,12 +92,8 @@
   (regexp-opt crystal-block-mid-keywords)
   "Regexp to match where the indentation gets shallower in middle of block statements.")
 
-(defconst crystal-block-op-keywords
-  '("and" "or" "not")
-  "Regexp to match boolean keywords.")
-
 (defconst crystal-block-hanging-re
-  (regexp-opt (append crystal-modifier-beg-keywords crystal-block-op-keywords))
+  (regexp-opt crystal-modifier-beg-keywords)
   "Regexp to match hanging block modifiers.")
 
 (defconst crystal-block-end-re "\\_<end\\_>")
@@ -604,8 +600,8 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
    (save-excursion
      (goto-char pos)
      (or (and (eq (char-syntax (char-after)) ?w)
-              (not (looking-at (regexp-opt '("unless" "if" "while" "until" "or"
-                                             "else" "elsif" "do" "end" "and")
+              (not (looking-at (regexp-opt '("unless" "if" "while" "until"
+                                             "else" "elsif" "do" "end")
                                            'symbols))))
          (memq (car (syntax-after pos)) '(7 15))
          (looking-at "[([]\\|[-+!~]\\sw\\|:\\(?:\\sw\\|\\s.\\)")))))
@@ -1188,7 +1184,6 @@ Can be one of `heredoc', `modifier', `expr-qstr', `expr-re'. `macro-cmd'"
                  (cond
                   ((looking-at (regexp-opt
                                 (append crystal-block-beg-keywords
-                                        crystal-block-op-keywords
                                         crystal-block-mid-keywords)
                                 'words))
                    (goto-char (match-end 0))
@@ -2094,8 +2089,8 @@ It will be properly highlighted even when the call omits parens.")
      "\\|[?:] "
      ;; Control flow keywords and operators following bol or whitespace.
      "\\|\\(?:^\\|\\s \\)"
-     (regexp-opt '("if" "elsif" "unless" "while" "until" "when" "and"
-                   "or" "not" "&&" "||"))
+     (regexp-opt '("if" "elsif" "unless" "while" "until" "when"
+                   "&&" "||"))
      ;; Method name from the list.
      "\\|\\_<"
      (regexp-opt crystal-syntax-methods-before-regexp)
@@ -2300,7 +2295,6 @@ See `font-lock-syntax-table'.")
        crystal-font-lock-keyword-beg-re
        (regexp-opt
         '("alias"
-          "and"
           "begin"
           "break"
           "case"
@@ -2323,9 +2317,7 @@ See `font-lock-syntax-table'.")
           "module"
           "annotation"
           "next"
-          "not"
           "of"
-          "or"
           "redo"
           "rescue"
           "retry"
@@ -2365,7 +2357,9 @@ See `font-lock-syntax-table'.")
           "loop"
           "open"
           "p"
+          "p!"
           "pp"
+          "pp!"
           "print"
           "printf"
           "putc"
@@ -2381,7 +2375,9 @@ See `font-lock-syntax-table'.")
           "alias_method"
           "attr"
           "property"
+          "property?"
           "getter"
+          "getter?"
           "setter"
           "define_method"
           "extend"
