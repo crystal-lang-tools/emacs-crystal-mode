@@ -496,6 +496,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
 
          (cases (b-stmt "then" stmts)
                 (cases "when" cases)
+                (cases "in" cases)
                 (stmts "else" stmts))
 
          (ielsei-macro (stmts) (stmts "{%else%}" stmts))
@@ -504,9 +505,8 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
          (ielsei-nest-macro (stmts) (stmts "\{%else%}" stmts))
          (if-nest-macro-body (ielsei-nest-macro) (if-nest-macro-body "\{%elsif%}" if-nest-macro-body)))
 
-       '((nonassoc "in") (assoc ";") (right " @ ")
-         (assoc ",") (right "="))
-      '((assoc "when"))
+      '((assoc ";") (right " @ ") (assoc ",") (right "="))
+      '((assoc "when") (assoc "in"))
       '((assoc "elsif"))
       '((assoc "{%elsif%}"))
       '((assoc "\{%elsif%}"))
@@ -831,7 +831,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
                 crystal-indent-level)))
 
       ((smie-rule-parent-p "def" "begin" "do" "module" "lib" "enum" "union"
-                           "while" "until" "unless" "if" "then" "elsif" "else" "when"
+                           "while" "until" "unless" "if" "then" "elsif" "else" "when" "in"
                            "macro" "class" "struct" "annotation"
                            "{%if%}" "{%for%}" "{%elsif%}" "{%else%}" "{%unless%}" "{%begin%}"
                            "\{%if%}" "\{%for%}" "\{%elsif%}" "\{%else%}" "\{%unless%}" "\{%begin%}"
@@ -903,7 +903,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
                       `"{%else%}" `"{%elsif%}" `"\{%else%}" `"\{%elsif%}"))
      (smie-rule-parent))
 
-    (`(:before . "when")
+    (`(:before . ,(or `"when" `"in"))
      ;; Align to the previous `when', but look up the virtual
      ;; indentation of `case'.
      (if (smie-rule-sibling-p) 0 (smie-rule-parent)))
