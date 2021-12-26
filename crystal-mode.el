@@ -53,7 +53,7 @@
   :link '(emacs-commentary-link :tag "Commentary" "crystal-mode"))
 
 (defconst crystal-block-beg-keywords
-  '("class" "module" "def" "if" "unless" "case" "while" "until" "for" "begin" "do"
+  '("class" "module" "def" "if" "unless" "case" "select" "while" "until" "for" "begin" "do"
     "macro" "lib" "enum" "struct" "describe" "it" "union" "annotation")
   "Keywords at the beginning of blocks.")
 
@@ -68,7 +68,7 @@
 (defconst crystal-indent-beg-re
   (concat "^\\(\\s *" (regexp-opt '("class" "module" "def" "macro" "lib" "enum" "struct" "union" "annotation"))
           "\\|"
-          (regexp-opt '("if" "unless" "case" "while" "until" "for" "begin"))
+          (regexp-opt '("if" "unless" "case" "select" "while" "until" "for" "begin"))
           "\\)\\_>")
   "Regexp to match where the indentation gets deeper.")
 
@@ -260,7 +260,7 @@ This should only be called after matching against `crystal-here-doc-beg-re'."
   :group 'crystal
   :safe 'integerp)
 
-(defconst crystal-alignable-keywords '(if while unless until begin case for def macro class struct)
+(defconst crystal-alignable-keywords '(if while unless until begin case select for def macro class struct)
   "Keywords that can be used in `crystal-align-to-stmt-keywords'.")
 
 (defcustom crystal-align-to-stmt-keywords '(def)
@@ -459,6 +459,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
                ("while" stmts "end")
                ("until" ielsei "end")
                ("case"  cases "end")
+               ("select" cases "end")
                ("->{" stmts "}")
                ;; macro
                ("macro" stmts "end")
@@ -2323,6 +2324,7 @@ See `font-lock-syntax-table'.")
           "retry"
           "return"
           "then"
+          "select"
           "struct"
           "super"
           "unless"
