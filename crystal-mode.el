@@ -691,80 +691,81 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
             tok)))))))))
 
 (defun crystal-smie--backward-token ()
-  (let ((pos (point)))
-    (forward-comment (- (point)))
-    (cond
-     ((looking-back "%}" (line-beginning-position))
-      (let ((macro-prefix "{%")
-            (macro-suffix "%}"))
-        (re-search-backward "{%")
-        (when (eq ?\\ (char-before))
-          (setq macro-prefix "\{%"))
-        (save-excursion
-          (forward-char 2)
-          (skip-chars-forward " \t")
-          (let ((tok (smie-default-forward-token)))
-            (if (member tok '("if" "else" "elsif" "end"
-                              "unless" "for" "while" "begin"))
-                (concat macro-prefix tok macro-suffix)
-              ";")))))
+  (ignore-errors
+    (let ((pos (point)))
+      (forward-comment (- (point)))
+      (cond
+       ((looking-back "%}" (line-beginning-position))
+	(let ((macro-prefix "{%")
+	      (macro-suffix "%}"))
+	  (re-search-backward "{%")
+	  (when (eq ?\\ (char-before))
+	    (setq macro-prefix "\{%"))
+	  (save-excursion
+	    (forward-char 2)
+	    (skip-chars-forward " \t")
+	    (let ((tok (smie-default-forward-token)))
+	      (if (member tok '("if" "else" "elsif" "end"
+				"unless" "for" "while" "begin"))
+		  (concat macro-prefix tok macro-suffix)
+		";")))))
 
-     ((and (> pos (line-end-position))
-           (crystal-smie--implicit-semi-p))
-      (skip-chars-forward " \t") ";")
+       ((and (> pos (line-end-position))
+	     (crystal-smie--implicit-semi-p))
+	(skip-chars-forward " \t") ";")
 
-     ((and (bolp) (not (bobp)))   ;; Presumably a heredoc.
-      ;; Tokenize the whole heredoc as semicolon.
-      (goto-char (scan-sexps (point) -1))
-      ";")
-     ((and (> pos (point)) (not (bolp))
-           (crystal-smie--args-separator-p pos))
-      ;; We have "ID SPC ID", which is a method call, but it binds less tightly
-      ;; than commas, since a method call can also be "ID ARG1, ARG2, ARG3".
-      ;; In some textbooks, "e1 @ e2" is used to mean "call e1 with arg e2".
-      " @ ")
-     (t
-      (let ((tok (smie-default-backward-token))
-            (dot (crystal-smie--at-dot-call)))
-        (when dot
-          (setq tok (concat "." tok)))
-        (when (and (equal tok "?")
-                   (not (memq (preceding-char) '(?\s ?\t ?\n)))) ;; bug#12
-          (setq tok ""))
-        (when (and (eq ?: (char-before)) (string-match "\\`\\s." tok))
-          (forward-char -1) (setq tok (concat ":" tok))) ;; bug#15208.
-        (cond
-         ((member tok '("unless" "if" "while" "until"))
-          (if (crystal-smie--bosp)
-              tok "iuwu-mod"))
-         ((equal tok "|")
-          (cond
-           ((crystal-smie--opening-pipe-p) "opening-|")
-           ((crystal-smie--closing-pipe-p) "closing-|")
-           (t tok)))
-         ((string-match-p "\\`|[*&]\\'" tok)
-          (forward-char 1)
-          (substring tok 1))
-         ((and (equal tok "") (eq ?\\ (char-before)) (looking-at "\n"))
-          (forward-char -1) (crystal-smie--backward-token))
-         ((equal tok "def")
-          (cond
-           ((not (crystal-smie--redundant-macro-def-p)) tok)
-           ((> (save-excursion (forward-word 1)
-                               (forward-comment (point-max)) (point))
-               (line-end-position))
-            (crystal-smie--backward-token)) ;Fully redundant.
-           (t ";")))
-         ((equal tok "do")
-          (cond
-           ((not (crystal-smie--redundant-do-p)) tok)
-           ((> (save-excursion (forward-word 1)
-                               (forward-comment (point-max)) (point))
-               (line-end-position))
-            (crystal-smie--backward-token)) ;Fully redundant.
-           (t ";")))
-         (t
-          tok)))))))
+       ((and (bolp) (not (bobp)))   ;; Presumably a heredoc.
+	;; Tokenize the whole heredoc as semicolon.
+	(goto-char (scan-sexps (point) -1))
+	";")
+       ((and (> pos (point)) (not (bolp))
+	     (crystal-smie--args-separator-p pos))
+	;; We have "ID SPC ID", which is a method call, but it binds less tightly
+	;; than commas, since a method call can also be "ID ARG1, ARG2, ARG3".
+	;; In some textbooks, "e1 @ e2" is used to mean "call e1 with arg e2".
+	" @ ")
+       (t
+	(let ((tok (smie-default-backward-token))
+	      (dot (crystal-smie--at-dot-call)))
+	  (when dot
+	    (setq tok (concat "." tok)))
+	  (when (and (equal tok "?")
+		     (not (memq (preceding-char) '(?\s ?\t ?\n)))) ;; bug#12
+	    (setq tok ""))
+	  (when (and (eq ?: (char-before)) (string-match "\\`\\s." tok))
+	    (forward-char -1) (setq tok (concat ":" tok))) ;; bug#15208.
+	  (cond
+	   ((member tok '("unless" "if" "while" "until"))
+	    (if (crystal-smie--bosp)
+		tok "iuwu-mod"))
+	   ((equal tok "|")
+	    (cond
+	     ((crystal-smie--opening-pipe-p) "opening-|")
+	     ((crystal-smie--closing-pipe-p) "closing-|")
+	     (t tok)))
+	   ((string-match-p "\\`|[*&]\\'" tok)
+	    (forward-char 1)
+	    (substring tok 1))
+	   ((and (equal tok "") (eq ?\\ (char-before)) (looking-at "\n"))
+	    (forward-char -1) (crystal-smie--backward-token))
+	   ((equal tok "def")
+	    (cond
+	     ((not (crystal-smie--redundant-macro-def-p)) tok)
+	     ((> (save-excursion (forward-word 1)
+				 (forward-comment (point-max)) (point))
+		 (line-end-position))
+	      (crystal-smie--backward-token)) ;Fully redundant.
+	     (t ";")))
+	   ((equal tok "do")
+	    (cond
+	     ((not (crystal-smie--redundant-do-p)) tok)
+	     ((> (save-excursion (forward-word 1)
+				 (forward-comment (point-max)) (point))
+		 (line-end-position))
+	      (crystal-smie--backward-token)) ;Fully redundant.
+	     (t ";")))
+	   (t
+	    tok))))))))
 
 (defun crystal-smie--indent-to-stmt ()
   (save-excursion
