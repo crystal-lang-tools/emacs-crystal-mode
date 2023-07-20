@@ -2784,7 +2784,7 @@ directory of the current file."
 ;;; Invoke crystal-mode when appropriate
 
 ;;;###autoload
-(add-to-list 'auto-mode-alist '("\\.cr\\'" . 'crystal-mode))
+(add-to-list 'auto-mode-alist (cons (purecopy"\\(?:\\.cr\\)\\'") 'crystal-mode))
 
 ;;;###autoload
 (dolist (name (list "crystal"))
