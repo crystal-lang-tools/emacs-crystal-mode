@@ -1,0 +1,4 @@
+(ert-deftest emacs-crystal-mode-test-abstract-indent ()
+  (should (string=
+           "abstract class"
+           )))

@@ -674,12 +674,16 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
            ((and (equal tok "") (looking-at "\\\\\n"))
             (goto-char (match-end 0)) (crystal-smie--forward-token))
            ((equal tok "def")
-            (cond
-             ((not (crystal-smie--redundant-macro-def-p 'skip)) tok)
-             ((> (save-excursion (forward-comment (point-max)) (point))
-                 (line-end-position))
-              (crystal-smie--forward-token)) ;Fully redundant.
-             (t ";")))
+            (let ((is-abstract (save-excursion
+                                 (backward-word 1)
+                                 (looking-at "abstract"))))
+              (cond
+               ((equal is-abstract t) ";")
+               ((not (crystal-smie--redundant-macro-def-p 'skip)) tok)
+               ((> (save-excursion (forward-comment (point-max)) (point))
+                   (line-end-position))
+                (crystal-smie--forward-token)) ;Fully redundant.
+               (t ";"))))
            ((equal tok "do")
             (cond
              ((not (crystal-smie--redundant-do-p 'skip)) tok)
@@ -748,13 +752,17 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
          ((and (equal tok "") (eq ?\\ (char-before)) (looking-at "\n"))
           (forward-char -1) (crystal-smie--backward-token))
          ((equal tok "def")
-          (cond
-           ((not (crystal-smie--redundant-macro-def-p)) tok)
-           ((> (save-excursion (forward-word 1)
-                               (forward-comment (point-max)) (point))
-               (line-end-position))
-            (crystal-smie--backward-token)) ;Fully redundant.
-           (t ";")))
+          (let ((is-abstract (save-excursion
+                               (backward-word 1)
+                               (looking-at "abstract"))))
+            (cond
+             ((equal is-abstract t) ";")
+             ((not (crystal-smie--redundant-macro-def-p)) tok)
+             ((> (save-excursion (forward-word 1)
+                                 (forward-comment (point-max)) (point))
+                 (line-end-position))
+              (crystal-smie--backward-token)) ;Fully redundant.
+             (t ";"))))
          ((equal tok "do")
           (cond
            ((not (crystal-smie--redundant-do-p)) tok)
