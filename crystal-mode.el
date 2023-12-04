@@ -701,17 +701,17 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
      ((looking-back "%}" (line-beginning-position))
       (let ((macro-prefix "{%")
             (macro-suffix "%}"))
-        (re-search-backward "{%")
-        (when (eq ?\\ (char-before))
-          (setq macro-prefix "\{%"))
-        (save-excursion
-          (forward-char 2)
-          (skip-chars-forward " \t")
-          (let ((tok (smie-default-forward-token)))
-            (if (member tok '("if" "else" "elsif" "end"
-                              "unless" "for" "while" "begin"))
-                (concat macro-prefix tok macro-suffix)
-              ";")))))
+        (when (re-search-backward "{%" nil t)
+          (when (eq ?\\ (char-before))
+            (setq macro-prefix "\{%"))
+          (save-excursion
+            (forward-char 2)
+            (skip-chars-forward " \t")
+            (let ((tok (smie-default-forward-token)))
+              (if (member tok '("if" "else" "elsif" "end"
+                                "unless" "for" "while" "begin"))
+                  (concat macro-prefix tok macro-suffix)
+                ";"))))))
 
      ((and (> pos (line-end-position))
            (crystal-smie--implicit-semi-p))
