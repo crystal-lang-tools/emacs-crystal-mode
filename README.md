@@ -1,4 +1,5 @@
 # emacs-crystal-mode
+[![MELPA](https://melpa.org/packages/crystal-mode-badge.svg)](https://melpa.org/#/crystal-mode)
 
 A minimal crystal mode for emacs, based on ruby-mode (of course)
 
