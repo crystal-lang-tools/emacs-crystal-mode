@@ -112,8 +112,8 @@
 
 (eval-and-compile
   (defconst crystal-here-doc-beg-re
-  "\\(<\\)<\\(-\\)?\\(\\([a-zA-Z0-9_]+\\)\\|[\"]\\([^\"]+\\)[\"]\\|[']\\([^']+\\)[']\\)"
-  "Regexp to match the beginning of a heredoc.")
+    "\\(<\\)<\\(-\\)?\\(\\([a-zA-Z0-9_]+\\)\\|[\"]\\([^\"]+\\)[\"]\\|[']\\([^']+\\)[']\\)"
+    "Regexp to match the beginning of a heredoc.")
 
   (defconst crystal-expression-expansion-re
     "\\(?:[^\\]\\|\\=\\)\\(\\\\\\\\\\)*\\(#\\({[^}\n\\\\]*\\(\\\\.[^}\n\\\\]*\\)*}\\|\\(\\$\\|@\\|@@\\)\\(\\w\\|_\\)+\\|\\$[^a-zA-Z \n]\\)\\)"))
@@ -416,116 +416,116 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
     value))
 
 (defcustom crystal-smie-grammar
-    (smie-prec2->grammar
-     (smie-merge-prec2s
-      (smie-bnf->prec2
-       '((id)
-         (stmts (g-stmt)
-                (g-stmt ";" stmts))
+  (smie-prec2->grammar
+   (smie-merge-prec2s
+    (smie-bnf->prec2
+     '((id)
+       (stmts (g-stmt)
+              (g-stmt ";" stmts))
 
-         (g-stmt (b-stmt)
-                 ;; if unless while untile (suffix express)
-                 (g-stmt "iuwu-mod" b-stmt))
+       (g-stmt (b-stmt)
+               ;; if unless while untile (suffix express)
+               (g-stmt "iuwu-mod" b-stmt))
 
-         (b-stmt (dot-stmt)
-                 (b-stmt "," b-stmt)
-                 (b-stmt "=" b-stmt)
-                 (id " @ " b-stmt))
+       (b-stmt (dot-stmt)
+               (b-stmt "," b-stmt)
+               (b-stmt "=" b-stmt)
+               (id " @ " b-stmt))
 
-         ;;(t-stmt (dot-stmt) (dot-stmt "?" t-stmt ":" t-stmt))
+       ;;(t-stmt (dot-stmt) (dot-stmt "?" t-stmt ":" t-stmt))
 
-         (dot-stmt (stmt) (stmt "." dot-stmt))
+       (dot-stmt (stmt) (stmt "." dot-stmt))
 
-         (type (id)
-               (type "::" id))
+       (type (id)
+             (type "::" id))
 
-         (type-spec (":" type))
+       (type-spec (":" type))
 
-         (stmt ("def" stmts-rescue-stmts "end")
-               ("begin" stmts-rescue-stmts "end")
-               ("do" stmts-rescue-stmts "end")
-               ("module" stmts "end")
-               ("class" stmts "end")
-               ("annotation" stmts "end")
-               ;; c-binding
-               ("lib" stmts"end")
-               ("struct" stmts "end")
-               ("fun" id "(" stmts ")" type-spec)
-               ("enum" stmts "end")
-               ("union" stmts "end")
-               ;; control exp
-               ("if" if-body "end")
-               ("unless" stmts "end")
-               ("while" stmts "end")
-               ("until" ielsei "end")
-               ("case"  cases "end")
-               ("select" cases "end")
-               ("->{" stmts "}")
-               ;; macro
-               ("macro" stmts "end")
-               ("{%if%}" if-macro-body "{%end%}")
-               ("{%unless%}" stmts "{%end%}")
-               ("{%for%}" stmts "{%end%}")
-               ("{%begin%}" stmts "{%end%}")
-               ;; nested macro
-               ("\{%if%}" if-nest-macro-body "\{%end%}")
-               ("\{%unless%}" stmts "\{%end%}")
-               ("\{%for%}" stmts "\{%end%}")
-               ("\{%begin%}" stmts "\{%end%}")
-               ;; array, hash...
-               ("[" expseq "]")
-               ("{{" b-stmt "}}")
-               ("{{" id "}}")
-               ("{" hashvals "}")
-               ("{" stmts "}"))
+       (stmt ("def" stmts-rescue-stmts "end")
+             ("begin" stmts-rescue-stmts "end")
+             ("do" stmts-rescue-stmts "end")
+             ("module" stmts "end")
+             ("class" stmts "end")
+             ("annotation" stmts "end")
+             ;; c-binding
+             ("lib" stmts"end")
+             ("struct" stmts "end")
+             ("fun" id "(" stmts ")" type-spec)
+             ("enum" stmts "end")
+             ("union" stmts "end")
+             ;; control exp
+             ("if" if-body "end")
+             ("unless" stmts "end")
+             ("while" stmts "end")
+             ("until" ielsei "end")
+             ("case"  cases "end")
+             ("select" cases "end")
+             ("->{" stmts "}")
+             ;; macro
+             ("macro" stmts "end")
+             ("{%if%}" if-macro-body "{%end%}")
+             ("{%unless%}" stmts "{%end%}")
+             ("{%for%}" stmts "{%end%}")
+             ("{%begin%}" stmts "{%end%}")
+             ;; nested macro
+             ("\{%if%}" if-nest-macro-body "\{%end%}")
+             ("\{%unless%}" stmts "\{%end%}")
+             ("\{%for%}" stmts "\{%end%}")
+             ("\{%begin%}" stmts "\{%end%}")
+             ;; array, hash...
+             ("[" expseq "]")
+             ("{{" b-stmt "}}")
+             ("{{" id "}}")
+             ("{" hashvals "}")
+             ("{" stmts "}"))
 
-         (formal-params ("opening-|" b-stmt "closing-|"))
+       (formal-params ("opening-|" b-stmt "closing-|"))
 
-         (stmts-rescue-stmts (stmts)
-                             (stmts-rescue-stmts "rescue" stmts-rescue-stmts)
-                             (stmts-rescue-stmts "ensure" stmts))
+       (stmts-rescue-stmts (stmts)
+                           (stmts-rescue-stmts "rescue" stmts-rescue-stmts)
+                           (stmts-rescue-stmts "ensure" stmts))
 
-         (expseq (b-stmt)) ;;(expseq "," expseq)
-         (hashvals (dot-stmt "=>" dot-stmt) (hashvals "," hashvals))
+       (expseq (b-stmt)) ;;(expseq "," expseq)
+       (hashvals (dot-stmt "=>" dot-stmt) (hashvals "," hashvals))
 
-         (ielsei (stmts) (stmts "else" stmts))
-         (if-body (ielsei) (if-body "elsif" if-body))
+       (ielsei (stmts) (stmts "else" stmts))
+       (if-body (ielsei) (if-body "elsif" if-body))
 
-         (cases (b-stmt "then" stmts)
-                (cases "when" cases)
-                (cases "in" cases)
-                (stmts "else" stmts))
+       (cases (b-stmt "then" stmts)
+              (cases "when" cases)
+              (cases "in" cases)
+              (stmts "else" stmts))
 
-         (ielsei-macro (stmts) (stmts "{%else%}" stmts))
-         (if-macro-body (ielsei-macro) (if-macro-body "{%elsif%}" if-macro-body))
+       (ielsei-macro (stmts) (stmts "{%else%}" stmts))
+       (if-macro-body (ielsei-macro) (if-macro-body "{%elsif%}" if-macro-body))
 
-         (ielsei-nest-macro (stmts) (stmts "\{%else%}" stmts))
-         (if-nest-macro-body (ielsei-nest-macro) (if-nest-macro-body "\{%elsif%}" if-nest-macro-body)))
+       (ielsei-nest-macro (stmts) (stmts "\{%else%}" stmts))
+       (if-nest-macro-body (ielsei-nest-macro) (if-nest-macro-body "\{%elsif%}" if-nest-macro-body)))
 
-      '((assoc ";") (right " @ ") (assoc ",") (right "="))
-      '((assoc "when") (assoc "in"))
-      '((assoc "elsif"))
-      '((assoc "{%elsif%}"))
-      '((assoc "\{%elsif%}"))
-      '((assoc "rescue" "ensure"))
-      '((assoc ",")))
+     '((assoc ";") (right " @ ") (assoc ",") (right "="))
+     '((assoc "when") (assoc "in"))
+     '((assoc "elsif"))
+     '((assoc "{%elsif%}"))
+     '((assoc "\{%elsif%}"))
+     '((assoc "rescue" "ensure"))
+     '((assoc ",")))
 
-      (smie-precs->prec2
-       '((right "=")
-         (right "+=" "-=" "*=" "/=" "%=" "**=" "&=" "|=" "^="
-                "<<=" ">>=" "&&=" "||=")
-         (left ".." "...")
-         (left "+" "-")
-         (left "*" "/" "%" "**")
-         (left "&&" "||")
-         (left "^" "&" "|")
-         (nonassoc "<=>")
-         (nonassoc ">" ">=" "<" "<=")
-         (nonassoc "==" "===" "!=")
-         (nonassoc "=~" "!~")
-         (left "<<" ">>")
-         (right ".")))))
-    "Grammar definition for Crystal.")
+    (smie-precs->prec2
+     '((right "=")
+       (right "+=" "-=" "*=" "/=" "%=" "**=" "&=" "|=" "^="
+              "<<=" ">>=" "&&=" "||=")
+       (left ".." "...")
+       (left "+" "-")
+       (left "*" "/" "%" "**")
+       (left "&&" "||")
+       (left "^" "&" "|")
+       (nonassoc "<=>")
+       (nonassoc ">" ">=" "<" "<=")
+       (nonassoc "==" "===" "!=")
+       (nonassoc "=~" "!~")
+       (left "<<" ">>")
+       (right ".")))))
+  "Grammar definition for Crystal.")
 
 (defun crystal-smie--bosp ()
   (save-excursion (skip-chars-backward " \t")
@@ -961,7 +961,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
                   (cond
                    ((string-match "^self\." name)
                     (concat (substring prefix 0 -1) (substring name 4)))
-                  (t (concat prefix name)))))
+                   (t (concat prefix name)))))
         (push (cons name pos) index-alist)
         (crystal-accurate-end-of-block end))
        (t
@@ -1011,7 +1011,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
             (goto-char (match-beginning 2)))
           (smie-forward-sexp))
       (while (and (setq state (apply 'crystal-parse-partial end state))
-                    (>= (nth 2 state) 0) (< (point) end))))))
+                  (>= (nth 2 state) 0) (< (point) end))))))
 
 (defun crystal-mode-variables ()
   "Set up initial buffer-local variables for Crystal mode."
@@ -1153,7 +1153,7 @@ Special characters are `?', `$', `:' when preceded by whitespace,
 and `\\' when preceded by `?'."
   (setq pos (or pos (point)))
   (let ((c (char-before pos)) (b (and (< (point-min) pos)
-				      (char-before (1- pos)))))
+                                      (char-before (1- pos)))))
     (cond ((or (eq c ??) (eq c ?$)))
           ((and (eq c ?:) (or (not b) (eq (char-syntax b) ? ))))
           ((eq c ?\\) (eq b ??)))))
@@ -1235,7 +1235,7 @@ delimiter."
                 (if (match-beginning 3)
                     (crystal-forward-string "}{" end no-error nil)
                   (> (setq n (if (eq (char-before (point)) c)
-                                     (1- n) (1+ n))) 0)))
+                                 (1- n) (1+ n))) 0)))
       (forward-char -1))
     (cond ((zerop n))
           (no-error nil)
@@ -1266,7 +1266,7 @@ delimiter."
         (cond
          ((and (not (eobp))
                (crystal-forward-string (buffer-substring (point) (1+ (point)))
-                                    end t t))
+                                       end t t))
           nil)
          (t
           (setq in-string (point))
@@ -1445,7 +1445,7 @@ delimiter."
        ((looking-at "^__END__$")
         (goto-char pnt))
        ((and (looking-at crystal-here-doc-beg-re)
-	     (boundp 'crystal-indent-point))
+             (boundp 'crystal-indent-point))
         (if (re-search-forward (crystal-here-doc-end-match)
                                crystal-indent-point t)
             (forward-line 1)
@@ -1472,7 +1472,7 @@ delimiter."
           (car (nth 1 state))           ; nest
           (nth 2 state)                 ; depth
           (car (car (nth 3 state)))     ; pcol
-          ;(car (nth 5 state))          ; indent
+                                        ;(car (nth 5 state))          ; indent
           )))
 
 (defun crystal-indent-size (pos nest)
@@ -1512,7 +1512,7 @@ delimiter."
                             (or (goto-char (cdr (nth 1 s))) t)))
                      (forward-word -1)
                      (setq indent (crystal-indent-size (current-column)
-						    (nth 2 state))))
+                                                       (nth 2 state))))
                     (t
                      (setq indent (current-column))
                      (cond ((eq deep 'space))
@@ -1601,16 +1601,16 @@ delimiter."
                     ;; Operator at the end of line.
                     (let ((c (char-after (point))))
                       (and
-;;                     (or (null begin)
-;;                         (save-excursion
-;;                           (goto-char begin)
-;;                           (skip-chars-forward " \t")
-;;                           (not (or (eolp) (looking-at "#")
-;;                                    (and (eq (car (nth 1 state)) ?{)
-;;                                         (looking-at "|"))))))
+                       ;;                     (or (null begin)
+                       ;;                         (save-excursion
+                       ;;                           (goto-char begin)
+                       ;;                           (skip-chars-forward " \t")
+                       ;;                           (not (or (eolp) (looking-at "#")
+                       ;;                                    (and (eq (car (nth 1 state)) ?{)
+                       ;;                                         (looking-at "|"))))))
                        ;; Not a regexp or percent literal.
                        (null (nth 0 (crystal-parse-region (or begin parse-start)
-                                                       (point))))
+                                                          (point))))
                        (or (not (eq ?| (char-after (point))))
                            (save-excursion
                              (or (eolp) (forward-char -1))
@@ -1764,7 +1764,7 @@ With ARG, do it many times.  Negative ARG means move backward."
       (condition-case nil
           (while (> i 0)
             (skip-syntax-forward " ")
-	    (if (looking-at ",\\s *") (goto-char (match-end 0)))
+            (if (looking-at ",\\s *") (goto-char (match-end 0)))
             (cond ((looking-at "\\?\\(\\\\[CM]-\\)*\\\\?\\S ")
                    (goto-char (match-end 0)))
                   ((progn
@@ -1823,8 +1823,8 @@ With ARG, do it many times.  Negative ARG means move forward."
                   ((looking-at "\\s\"\\|\\\\\\S_")
                    (let ((c (char-to-string (char-before (match-end 0)))))
                      (while (and (search-backward c)
-				 (eq (logand (skip-chars-backward "\\") 1)
-				     1))))
+                                 (eq (logand (skip-chars-backward "\\") 1)
+                                     1))))
                    nil)
                   ((looking-at "\\s.\\|\\s\\")
                    (if (crystal-special-char-p) (forward-char -1)))
@@ -2304,53 +2304,67 @@ See `font-lock-syntax-table'.")
     (,(concat
        crystal-font-lock-keyword-beg-re
        (regexp-opt
-        '("alias"
+        '("abstract"
+          "alias"
+          "annotation"
+          "as"
+          "as?"
+          "asm"
           "begin"
           "break"
           "case"
           "class"
-          "context"
           "def"
-          "describe"
-          "defined?"
           "do"
-          "elsif"
           "else"
-          "fail"
-          "ensure"
-          "for"
+          "elsif"
           "end"
+          "ensure"
+          "enum"
+          "extend"
+          "false"
+          "for"
+          "fun"
           "if"
           "in"
-          "it"
+          "include"
+          "instance_sizeof"
+          "is_a?"
           "lib"
           "macro"
           "module"
-          "annotation"
           "next"
+          "nil"
+          "nil?"
           "of"
-          "pending"
-          "redo"
+          "out"
+          "pointerof"
+          "previous_def"
+          "private"
+          "protected"
+          "puts"
+          "require"
           "rescue"
-          "retry"
+          "responds_to?"
           "return"
-          "then"
           "select"
+          "self"
+          "sizeof"
           "struct"
           "super"
+          "then"
+          "true"
+          "type"
+          "typeof"
+          "uninitialized"
+          "union"
           "unless"
-          "undef"
           "until"
+          "verbatim"
           "when"
           "while"
           "with"
-          "yield"
-          "lib"
-          "struct"
-          "enum"
-          "union"
-          "fun"
-          "type")
+          "yield")
         'symbols))
      (1 font-lock-keyword-face))
     ;; Core methods that have required arguments.
@@ -2358,61 +2372,69 @@ See `font-lock-syntax-table'.")
        crystal-font-lock-keyword-beg-re
        (regexp-opt
         '( ;; built-in methods on Kernel
+          "abort"
           "at_exit"
-          "autoload"
-          "autoload?"
-          "catch"
           "class_getter"
           "class_getter?"
           "class_getter!"
+          "class_setter"
           "class_property"
           "class_property?"
           "class_property!"
-          "class_setter"
-          "eval"
-          "exec"
-          "fork"
-          "format"
-          "load"
+          "def_equals"
+          "def_equals_and_hash"
+          "def_hash"
+          "delegate"
+          "forward_missing_to"
+          "getter"
+          "getter?"
+          "getter!"
+          "gets"
           "loop"
-          "open"
+          "setter"
+          "sleep"
+          "property"
+          "property?"
+          "property!"
           "p"
           "p!"
           "pp"
           "pp!"
           "print"
           "printf"
-          "putc"
-          "puts"
-          "require"
+          "raise"
+          "rand"
+          "read_line"
           "spawn"
           "sprintf"
-          "syscall"
           "system"
-          "trap"
-          "warn"
-          ;; keyword-like private methods on Module
-          "alias_method"
-          "attr"
-          "property"
-          "property?"
-          "property!"
-          "getter"
-          "getter?"
-          "getter!"
-          "setter"
-          "define_method"
-          "extend"
-          "include"
-          "module_function"
+          "timeout"
           "prepend"
-          "private_class_method"
-          "private_constant"
-          "public_class_method"
-          "public_constant"
-          "refine"
-          "using"
-          "record")
+          "record"
+          ;; methods for Spec
+          "context"
+          "describe"
+          "fail"
+          "it"
+          "pending"
+          "pending!"
+          "assert_prints"
+          "assert_iterates_iterator"
+          "assert_iterates_yielding"
+          "be"
+          "be_close"
+          "be_empty"
+          "be_false"
+          "be_falsey"
+          "be_nil"
+          "be_true"
+          "be_truthy"
+          "contain"
+          "end_with"
+          "eq"
+          "expect_raises"
+          "match"
+          "start_with")
         'symbols))
      (1 (unless (looking-at " *\\(?:[]|,.)}=]\\|$\\)")
           font-lock-builtin-face)))
@@ -2420,28 +2442,11 @@ See `font-lock-syntax-table'.")
     (,(concat
        crystal-font-lock-keyword-beg-re
        (regexp-opt
-        '("__callee__"
-          "__dir__"
-          "__method__"
-          "abort"
-          "at_exit"
-          "binding"
-          "block_given?"
+        '(
           "caller"
-          "exit"
-          "exit!"
-          "fail"
-          "abstract"
-          "private"
-          "protected"
-          "public"
-          "raise"
-          "rand"
-          "readline"
-          "readlines"
-          "sleep"
-          "srand"
-          "throw")
+          "debugger"
+          "def_clone"
+          "exit")
         'symbols))
      (1 font-lock-builtin-face))
     ;; Here-doc beginnings.
@@ -2462,27 +2467,17 @@ See `font-lock-syntax-table'.")
      2 font-lock-constant-face)
     ;; Special globals.
     (,(concat "\\$\\(?:[:\"!@;,/\\._><\\$?~=*&`'+0-9]\\|-[0adFiIlpvw]\\|"
-              (regexp-opt '("LOAD_PATH" "LOADED_FEATURES" "PROGRAM_NAME"
-                            "ERROR_INFO" "ERROR_POSITION"
-                            "FS" "FIELD_SEPARATOR"
-                            "OFS" "OUTPUT_FIELD_SEPARATOR"
-                            "RS" "INPUT_RECORD_SEPARATOR"
-                            "ORS" "OUTPUT_RECORD_SEPARATOR"
-                            "NR" "INPUT_LINE_NUMBER"
-                            "LAST_READ_LINE" "DEFAULT_OUTPUT" "DEFAULT_INPUT"
-                            "PID" "PROCESS_ID" "CHILD_STATUS"
-                            "LAST_MATCH_INFO" "IGNORECASE"
-                            "ARGV" "MATCH" "PREMATCH" "POSTMATCH"
-                            "LAST_PAREN_MATCH" "stdin" "stdout" "stderr"
-                            "DEBUG" "FILENAME" "VERBOSE" "SAFE" "CLASSPATH"))
+              (regexp-opt '("PROGRAM_NAME" "ARGV" "ARGF" "STDIN" "STDOUT" "STDERR"
+                            "EOL" "__FILE__" "__DIR__" "_LINE__" "__END_LINE__"
+                            "Crystal"))
               "\\_>\\)")
      0 font-lock-builtin-face)
     ("\\(\\$\\|@\\|@@\\)\\(\\w\\|_\\)+"
      0 font-lock-variable-name-face)
     ;; Attributes
     (, crystal-attr-re
-     (1 font-lock-preprocessor-face)
-     (3 font-lock-preprocessor-face))
+       (1 font-lock-preprocessor-face)
+       (3 font-lock-preprocessor-face))
     ;; Constants.
     ("\\(?:\\_<\\|::\\|\\s+:\\s+\\)\\([A-Z]+\\(\\w\\|_\\)*\\)"
      1 (unless (eq ?\( (char-after)) font-lock-type-face))
@@ -2569,7 +2564,7 @@ See `font-lock-syntax-table'.")
 (defun crystal-tool--location(sub-cmd &optional crystal-mode-p)
   (let* ((name (or
                 (and (file-exists-p buffer-file-name) buffer-file-name)
-                   (make-temp-file (concat "crystal-" sub-cmd) nil ".cr")))
+                (make-temp-file (concat "crystal-" sub-cmd) nil ".cr")))
          (lineno (number-to-string (line-number-at-pos)))
          (colno (number-to-string (+ 1 (current-column))))
          (bname (concat "*Crystal-" (capitalize sub-cmd) "*"))
@@ -2581,13 +2576,13 @@ See `font-lock-syntax-table'.")
       (erase-buffer)
       (when crystal-mode-p
         (funcall 'crystal-mode)))
-      (crystal-exec (list "tool" sub-cmd "--no-color" "-c"
-                          (concat name ":" lineno ":" colno) name)
-                    bname)
-      (with-current-buffer buffer
-        (when (string-equal sub-cmd "implementations")
-          (compilation-mode))
-        (read-only-mode))
+    (crystal-exec (list "tool" sub-cmd "--no-color" "-c"
+                        (concat name ":" lineno ":" colno) name)
+                  bname)
+    (with-current-buffer buffer
+      (when (string-equal sub-cmd "implementations")
+        (compilation-mode))
+      (read-only-mode))
     (display-buffer buffer)))
 
 (defun crystal-def--find-line-column (specifier other-window)
@@ -2634,7 +2629,7 @@ description at POINT."
                            (line-num (number-to-string (cdr (assoc "line" imp))))
                            (column-num (number-to-string (cdr (assoc "column" imp)))))
                       (concat fname ":" line-num ":" column-num))
-                    (error (cdr (assoc "message" imp-res-json))))
+                  (error (cdr (assoc "message" imp-res-json))))
               (error "Failed to jump def")))
         (kill-buffer outbuf)))))
 
@@ -2679,10 +2674,10 @@ description at POINT."
               "%s switch to %s"
               (substring fname (length root-dir) nil)
               (substring to-fname (length root-dir) nil)))
-      (if (file-exists-p to-fname)
-          (funcall #'find-file to-fname)
-        (when (y-or-n-p (format "%s not exist. Create?" (substring to-fname (length root-dir) nil)))
-          (funcall #'find-file to-fname)))))
+    (if (file-exists-p to-fname)
+        (funcall #'find-file to-fname)
+      (when (y-or-n-p (format "%s not exist. Create?" (substring to-fname (length root-dir) nil)))
+        (funcall #'find-file to-fname)))))
 
 (defun crystal-spec--switch-to-fname (root-dir fname)
   (let* ((fname-non-dir (file-name-nondirectory fname))
@@ -2722,12 +2717,12 @@ description at POINT."
         (if (string-suffix-p "_spec.cr" fname)
             (crystal-spec--call fname)
           (if (not (string-suffix-p "spec_helper.cr" (buffer-file-name)))
-            (let* ((root-dir (file-truename (crystal-find-project-root)))
-                  (fname (file-truename (buffer-file-name (current-buffer))))
-                  (to-fname (crystal-spec--switch-to-fname root-dir fname)))
-              (if (file-exists-p to-fname)
-                  (crystal-spec--call to-fname)
-                (error (format "%s not exist." to-fname))))
+              (let* ((root-dir (file-truename (crystal-find-project-root)))
+                     (fname (file-truename (buffer-file-name (current-buffer))))
+                     (to-fname (crystal-spec--switch-to-fname root-dir fname)))
+                (if (file-exists-p to-fname)
+                    (crystal-spec--call to-fname)
+                  (error (format "%s not exist." to-fname))))
             (error "Cannot use crystal spec on spec_helper.cr."))))
     (error "Cannot use crystal spec on a buffer without a file name.")))
 
@@ -2735,15 +2730,15 @@ description at POINT."
 (defun crystal-spec-all()
   "Run all specs for current project."
   (interactive)
-   (crystal-spec--call nil))
+  (crystal-spec--call nil))
 
 (defun crystal-spec--call (fname)
   (let* ((bname "*Crystal-spec*")
-        (spec-buffer (get-buffer-create bname))
-        (spec-args (list "spec" "--no-color"))
-        (relative-dir-fname (when fname
-                              (substring fname
-                                         (length (file-truename (crystal-find-project-root))) nil))))
+         (spec-buffer (get-buffer-create bname))
+         (spec-args (list "spec" "--no-color"))
+         (relative-dir-fname (when fname
+                               (substring fname
+                                          (length (file-truename (crystal-find-project-root))) nil))))
     (when relative-dir-fname
       (setq spec-args (append spec-args (list relative-dir-fname))))
     (with-current-buffer spec-buffer
@@ -2784,10 +2779,10 @@ directory of the current file."
   (setq-local syntax-propertize-function #'crystal-syntax-propertize-function)
 
   (when (and (boundp 'compilation-error-regexp-alist)
-           (boundp 'compilation-error-regexp-alist-alist))
-  (add-to-list 'compilation-error-regexp-alist 'crystal-spec)
-  (add-to-list 'compilation-error-regexp-alist-alist
-               '(crystal-spec . ("^\\(Error \\)?in \\([^()\t\n]+\\):\\([0-9]+\\):? .*$" 2 3)) t)))
+             (boundp 'compilation-error-regexp-alist-alist))
+    (add-to-list 'compilation-error-regexp-alist 'crystal-spec)
+    (add-to-list 'compilation-error-regexp-alist-alist
+                 '(crystal-spec . ("^\\(Error \\)?in \\([^()\t\n]+\\):\\([0-9]+\\):? .*$" 2 3)) t)))
 
 ;;; Invoke crystal-mode when appropriate
 
