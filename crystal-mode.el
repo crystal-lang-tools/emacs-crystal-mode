@@ -467,6 +467,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
              ("{%unless%}" stmts "{%end%}")
              ("{%for%}" stmts "{%end%}")
              ("{%begin%}" stmts "{%end%}")
+             ("{%verbatim%}" stmts "{%end%}")
              ;; nested macro
              ("\{%if%}" if-nest-macro-body "\{%end%}")
              ("\{%unless%}" stmts "\{%end%}")
@@ -560,7 +561,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
                       (forward-comment 1)
                       (eq (char-after) ?.))))))
       (when (member backward-tok
-                    '("{%if%}" "{%for%}" "{%elsif%}" "{%else%}" "{%unless%}" "{%begin%}"
+                    '("{%if%}" "{%for%}" "{%elsif%}" "{%else%}" "{%unless%}" "{%begin%}" "{%verbatim%}"
                       "\{%if%}" "\{%for%}" "\{%elsif%}" "\{%else%}" "\{%unless%}" "\{%begin%}"
                       "{%end%}"))
         (setq semi-p t))
@@ -628,7 +629,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
       (forward-char 2)
       (skip-chars-forward " \t")
       (let ((tok (smie-default-forward-token)))
-        (if (member tok '("end" "else" "elsif" "if" "unless" "for" "while" "begin"))
+        (if (member tok '("end" "else" "elsif" "if" "unless" "for" "while" "begin" "verbatim"))
             (concat "{%" tok "%}")
           ;; For other macro content (assignments, expressions, etc.),
           ;; skip to the closing %} and treat as statement separator
@@ -713,7 +714,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
             (skip-chars-forward " \t")
             (let ((tok (smie-default-forward-token)))
               (if (member tok '("if" "else" "elsif" "end"
-                                "unless" "for" "while" "begin"))
+                                "unless" "for" "while" "begin" "verbatim"))
                   (concat macro-prefix tok macro-suffix)
                 ";"))))))
 
@@ -842,7 +843,7 @@ It is used when `crystal-encoding-magic-comment-style' is set to `custom'."
       ((smie-rule-parent-p "def" "begin" "do" "module" "lib" "enum" "union"
                            "while" "until" "unless" "if" "then" "elsif" "else" "when" "in"
                            "macro" "class" "struct" "annotation"
-                           "{%if%}" "{%for%}" "{%elsif%}" "{%else%}" "{%unless%}" "{%begin%}"
+                           "{%if%}" "{%for%}" "{%elsif%}" "{%else%}" "{%unless%}" "{%begin%}" "{%verbatim%}"
                            "\{%if%}" "\{%for%}" "\{%elsif%}" "\{%else%}" "\{%unless%}" "\{%begin%}"
                            "rescue" "ensure" "{")
        (smie-rule-parent crystal-indent-level))
